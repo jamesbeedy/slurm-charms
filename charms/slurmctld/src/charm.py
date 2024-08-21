@@ -10,7 +10,7 @@ import subprocess
 from typing import Any, Dict, List, Optional, Union
 
 from constants import CHARM_MAINTAINED_SLURM_CONF_PARAMETERS, PEER_RELATION, SLURM_CONF_PATH
-from custom_exceptions import IngressAddressUnavailableError
+from exceptions import IngressAddressUnavailableError
 from interface_slurmd import (
     PartitionAvailableEvent,
     PartitionUnavailableEvent,
@@ -412,7 +412,7 @@ class SlurmctldCharm(CharmBase):
                 peer_binding.network.ingress_address,
             )
             return str(peer_binding.network.ingress_address)
-        raise IngressAddressUnavailableError
+        raise IngressAddressUnavailableError("Ingress address unavailable")
 
     @property
     def slurm_installed(self) -> bool:
