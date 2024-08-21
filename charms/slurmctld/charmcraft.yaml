@@ -30,7 +30,6 @@ requires:
   slurmrestd:
     interface: slurmrestd
 
-
 peers:
   slurmctld-peer:
     interface: slurmctld-peer
