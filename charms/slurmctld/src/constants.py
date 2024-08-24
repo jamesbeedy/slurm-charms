@@ -17,8 +17,7 @@ CHARM_MAINTAINED_SLURM_CONF_PARAMETERS = {
     "HealthCheckNodeState": "ANY,CYCLE",
     "HealthCheckProgram": "/usr/sbin/omni-nhc-wrapper",
     "MailProg": "/usr/bin/mail.mailutils",
-    "PluginDir": "/usr/lib/x86_64-linux-gnu/slurm-wlm",
-    "PlugStackConfig": "/etc/slurm/plugstack.conf.d/plugstack.conf",
+    "PlugStackConfig": "/etc/slurm/plugstack.conf",
     "SelectType": "select/cons_tres",
     "SlurmctldPort": "6817",
     "SlurmdPort": "6818",
@@ -65,4 +64,52 @@ ya2212K5q68O5eXOfCnGeMvqIXxqzpdukxSZnLkgk40uFJnJVESd/CxHquqHPUDE
 fy6i2AnB3kUI27D4HY2YSlXLSRbjiSxTfVwNCzDsIh7Czefsm6ITK2+cVWs0hNQ=
 =cs1s
 -----END PGP PUBLIC KEY BLOCK-----
+"""
+
+MUNGE_SYSTEMD_SERVICE_FILE = """
+[Unit]
+Description=MUNGE authentication service
+Documentation=man:munged(8)
+After=network.target
+After=time-sync.target
+
+[Service]
+Type=forking
+EnvironmentFile=-/etc/default/munge
+ExecStart=/srv/slurm/view/sbin/munged $OPTIONS
+PIDFile=/run/munge/munged.pid
+RuntimeDirectory=munge
+RuntimeDirectoryMode=0755
+User=munge
+Group=munge
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+SLURMCTLD_SYSTEMD_SERVICE_FILE = """
+[Unit]
+Description=Slurm controller daemon
+After=network-online.target munge.service
+Wants=network-online.target
+ConditionPathExists=/etc/slurm/slurm.conf
+Documentation=man:slurmctld(8)
+
+[Service]
+Type=notify
+User=slurm
+Group=slurm
+RuntimeDirectory=slurmctld
+RuntimeDirectoryMode=0755
+EnvironmentFile=-/etc/default/slurmctld
+ExecStart=/srv/slurm/view/sbin/slurmctld --systemd $SLURMCTLD_OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/slurmctld.pid
+LimitNOFILE=65536
+TasksMax=infinity
+
+
+[Install]
+WantedBy=multi-user.target
 """

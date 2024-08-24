@@ -1,0 +1,20 @@
+name: juju-slurm-user-build
+description: Default LXD profile
+
+config:
+  boot.autostart: "true"
+  security.nesting: "true"
+
+devices:
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+  root:
+    path: /
+    pool: default
+    type: disk
+  slurm:
+    path: /srv/slurm
+    source: /srv/slurm
+    type: disk

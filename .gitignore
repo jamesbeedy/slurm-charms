@@ -11,3 +11,5 @@ version
 .ruff_cache/
 _build
 .charmhub.secret
+slurm-user-build/.spack-env
+slurm-user-build/spack.lock

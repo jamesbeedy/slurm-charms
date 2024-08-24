@@ -1,0 +1,35 @@
+base: ubuntu@22.04
+
+applications:
+  mysql:
+    charm: mysql
+    channel: 8.0/stable
+    num_units: 1
+  mysql-router:
+    charm: mysql-router
+    channel: dpe/beta
+    num_units: 0
+
+  slurmctld:
+    charm: ./../_build/slurmctld.charm
+    num_units: 1
+    options:
+      user-provided-slurm: true
+
+  slurmd:
+    charm: ./../_build/slurmd.charm
+    num_units: 1
+
+  slurmdbd:
+    charm: ./../_build/slurmdbd.charm
+    num_units: 1
+
+relations:
+- - mysql-router:backend-database
+  - mysql:database
+- - slurmdbd:database
+  - mysql-router:database
+- - slurmctld:slurmd
+  - slurmd:slurmctld
+- - slurmctld:slurmdbd
+  - slurmdbd:slurmctld

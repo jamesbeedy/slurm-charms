@@ -64,7 +64,7 @@ class SlurmctldCharm(CharmBase):
             user_supplied_slurm_conf_params=str(),
         )
 
-        self._slurmctld_manager = SlurmctldManager()
+        self._slurmctld_manager = SlurmctldManager(self.config.get("user-provided-slurm"))
 
         self._slurmd = Slurmd(self, "slurmd")
         self._slurmdbd = Slurmdbd(self, "slurmdbd")
@@ -190,8 +190,7 @@ class SlurmctldCharm(CharmBase):
         event.log(f"Draining {nodes} because {reason}.")
 
         try:
-            cmd = f'scontrol update nodename={nodes} state=drain reason="{reason}"'
-            subprocess.check_output(shlex.split(cmd))
+            self._slurmctld_manager.slurm_cmd("scontrol", f'update nodename={nodes} state=drain reason="{reason}"')
             event.set_results({"status": "draining", "nodes": nodes})
         except subprocess.CalledProcessError as e:
             event.fail(message=f"Error draining {nodes}: {e.output}")
@@ -204,8 +203,7 @@ class SlurmctldCharm(CharmBase):
         event.log(f"Resuming {nodes}.")
 
         try:
-            cmd = f"scontrol update nodename={nodes} state=resume"
-            subprocess.check_output(shlex.split(cmd))
+            self._slurmctld_manager.slurm_cmd("scontrol", f"update nodename={nodes} state=resume")
             event.set_results({"status": "resuming", "nodes": nodes})
         except subprocess.CalledProcessError as e:
             event.fail(message=f"Error resuming {nodes}: {e.output}")
@@ -310,6 +308,7 @@ class SlurmctldCharm(CharmBase):
             "SlurmctldAddr": self._slurmd_ingress_address,
             "SlurmctldHost": self.hostname,
             "SlurmctldParameters": _assemble_slurmctld_parameters(),
+            "PluginDir": self._slurmctld_manager.plugin_dir,
             "ProctrackType": "proctrack/linuxproc" if is_container() else "proctrack/cgroup",
             "TaskPlugin": "task/affinity" if is_container() else "task/cgroup,task/affinity",
             **accounting_params,
