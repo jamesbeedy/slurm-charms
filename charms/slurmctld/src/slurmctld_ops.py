@@ -11,6 +11,7 @@ from base64 import b64decode, b64encode
 from grp import getgrnam
 from pathlib import Path
 from pwd import getpwnam
+from typing import Optional
 
 import distro
 from constants import (
@@ -128,52 +129,98 @@ class CharmedHPCPackageLifecycleManager:
         return slurm_package_vers
 
 
+class PrometheusSlurmExporterPackageLifecycleManager(CharmedHPCPackageLifecycleManager):
+    """Facilitate ubuntu-hpc prometheus-slurm-exporter package lifecycles."""
+
+    def _repo(self) -> apt.DebianRepository:
+        """Return the ubuntu-hpc repo."""
+        ppa_url: str = "https://ppa.launchpadcontent.net/ubuntu-hpc/prometheus-slurm-exporter/ubuntu"
+        sources_list: str = (
+            f"deb [signed-by={self._keyring_path}] {ppa_url} {distro.codename()} main"
+        )
+        return apt.DebianRepository.from_repo_line(sources_list)
+
+
 class SlurmctldManager:
     """SlurmctldManager."""
 
-    def __init__(self, user_provided_slurm: bool = False):
-        self._user_provided_slurm = user_provided_slurm
-        self._munge_package = CharmedHPCPackageLifecycleManager("munge")
-        self._slurmctld_package = CharmedHPCPackageLifecycleManager("slurmctld")
+    def __init__(self, user_provided_slurm_prefix: Optional[str] = None):
+        self._user_provided_slurm_prefix = user_provided_slurm_prefix
 
-        self._path_prefix = Path("/srv/slurm/view" if user_provided_slurm else "/usr")
+        self._path_prefix = Path(
+            user_provided_slurm_prefix if user_provided_slurm_prefix is not None else "/usr"
+        )
 
         self._bin_path = self._path_prefix / "bin"
         self._sbin_path = self._path_prefix / "sbin"
         self._plugin_dir = Path(
             f"{self._path_prefix}/lib/slurm"
-            if user_provided_slurm else f"{self._path_prefix}/lib/x86_64-linux-gnu/slurm-wlm"
+            if user_provided_slurm_prefix
+            else f"{self._path_prefix}/lib/x86_64-linux-gnu/slurm-wlm"
         )
 
-        self._mungekey_file_path = self._sbin_path / "mungekey"
         self._slurmctld_bin_path = self._sbin_path / "slurmctld"
+
         self._munge_bin_path = self._bin_path / "munge"
         self._unmunge_bin_path = self._bin_path / "unmunge"
+        self._mungekey_bin_path = self._sbin_path / "mungekey"
+
+        self._munge_socket_dir = Path("/var/run/munge")
+        self._munge_socket_path = self._munge_socket_dir / "munge.socket.2"
 
     def install(self) -> bool:
         """Install slurm from user_provided or apt."""
-        if self._user_provided_slurm:
+        if self._user_provided_slurm_prefix is not None:
             Path("/etc/profile.d/Z0-slurm-user-build-path.sh").write_text(
                 f'export PATH="$PATH:{self._sbin_path}:{self._bin_path}"'
             )
             self._install_user_provided_munge()
             self._install_user_provided_slurmctld()
         else:
-            self._install_from_apt()
+            if self._install_from_apt() is not True:
+                return False
+
         return True
+
+    def install_slurm_exporter(self) -> bool:
+        """Install prometheus-slurm-exporter to the system."""
+        exporter_defaults_file_path = Path("/etc/default/prometheus-slurm-exporter")
+        slurm_exporter = PrometheusSlurmExporterPackageLifecycleManager("prometheus-slurm-exporter")
+        if slurm_exporter.install() is not False:
+            systemd.service_stop("prometheus-slurm-exporter")
+            slurm_exporter_options_str = (
+                "-slurm.collect-diags "
+                "-slurm.collect-licenses "
+                "-slurm.collect-limits "
+                f"-slurm.diag-cli={self._bin_path}/sdiag "
+                f"-slurm.lic-cli={self._bin_path}/squeue "
+                f"-slurm.squeue-cli={self._bin_path}/squeue "
+                f"-slurm.sinfo-cli={self._bin_path}/sinfo "
+                f"-slurm.sacctmgr-cli={self._bin_path}/sacctmgr"
+            )
+            exporter_defaults_file_path.write_text(
+                f'ARGS="{slurm_exporter_options_str}"'
+            )
+            systemd.service_start("prometheus-slurm-exporter")
+            return True
+        return False
 
     def _install_from_apt(self) -> bool:
         """Install slurmctld and munge to the system."""
-        if self._slurmctld_package.install() is not True:
+        slurmctld_package = CharmedHPCPackageLifecycleManager("slurmctld")
+        munge_package = CharmedHPCPackageLifecycleManager("munge")
+
+        if slurmctld_package.install() is not True:
             return False
         systemd.service_stop("slurmctld")
 
-        if self._munge_package.install() is not True:
+        if munge_package.install() is not True:
             return False
         systemd.service_stop("munge")
 
         spool_dir = Path("/var/spool/slurmctld")
         spool_dir.mkdir(exists_ok=True)
+
         slurm_user_uid, slurm_group_gid = _get_slurm_user_uid_and_slurm_group_gid()
         os.chown(f"{spool_dir}", slurm_user_uid, slurm_group_gid)
 
@@ -181,46 +228,17 @@ class SlurmctldManager:
         """Provision slurmctld systemd service and dirs."""
         slurmctld_log_dir = Path("/var/log/slurm")
         slurmctld_etc_dir = Path("/etc/slurm")
-        # slurmctld_default_file = Path("/etc/default/slurmctld")
         slurmctld_spool_dir = Path("/var/spool/slurmctld")
         slurmctld_systemd_service_file = Path("/lib/systemd/system/slurmctld.service")
 
+        slurm_user_name = "slurm"
+        slurm_group_name = "slurm"
         slurm_user_uid = "64030"
         slurm_group_gid = "64030"
 
-        # Create the slurm user and group
-        logger.info("#### Creating slurm user and group")
-        try:
-            subprocess.check_output(["groupadd", "--gid", slurm_group_gid, SLURM_GROUP])
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 9:
-                logger.warning("## Group already exists.")
-            else:
-                logger.error(f"## Error creating group: {e}")
-                return False
-
-        try:
-            subprocess.check_output(
-                [
-                    "adduser",
-                    "--system",
-                    "--gid",
-                    slurm_group_gid,
-                    "--uid",
-                    slurm_user_uid,
-                    "--no-create-home",
-                    "--home",
-                    "/nonexistent",
-                    SLURM_USER,
-                ]
-            )
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 9:
-                logger.warning("## User already exists.")
-            else:
-                logger.error(f"## Error creating user: {e}")
-                return False
-        logger.info("#### Created slurm user and group")
+        self._create_user_and_group(
+            slurm_user_name, slurm_group_name, slurm_user_uid, slurm_group_gid
+        )
 
         # Create slurmctld dirs
         for slurmctld_dir in [slurmctld_log_dir, slurmctld_spool_dir, slurmctld_etc_dir]:
@@ -228,8 +246,8 @@ class SlurmctldManager:
             os.chown(f"{slurmctld_dir}", int(slurm_user_uid), int(slurm_group_gid))
 
         # Generate and write the jwt_key
-        jwt_rsa = self.generate_jwt_rsa()
-        self.write_jwt_rsa(jwt_rsa)
+        # jwt_rsa = self.generate_jwt_rsa()
+        # self.write_jwt_rsa(jwt_rsa)
 
         # Create the systemd service file
         slurmctld_systemd_service_file.write_text(SLURMCTLD_SYSTEMD_SERVICE_FILE)
@@ -243,7 +261,6 @@ class SlurmctldManager:
         munge_etc_dir = Path("/etc/munge")
         munge_seed_dir = Path("/var/lib/munge")
         munge_pid_dir = Path("/run/munge")
-        munge_socket_dir = Path("/var/run/munge")
         munge_defaults_file = Path("/etc/default/munge")
         munge_systemd_service_file = Path("/lib/systemd/system/munge.service")
 
@@ -252,39 +269,9 @@ class SlurmctldManager:
         munge_user_uid = "114"
         munge_group_gid = "121"
 
-        # Create the munge user and group
-        logger.info("#### Creating munge user and group")
-        try:
-            subprocess.check_output(["groupadd", "--gid", munge_group_gid, munge_group_name])
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 9:
-                logger.warning("## Group already exists.")
-            else:
-                logger.error(f"## Error creating group: {e}")
-                return False
-
-        try:
-            subprocess.check_output(
-                [
-                    "adduser",
-                    "--system",
-                    "--gid",
-                    munge_group_gid,
-                    "--uid",
-                    munge_user_uid,
-                    "--no-create-home",
-                    "--home",
-                    "/nonexistent",
-                    munge_user_name,
-                ]
-            )
-        except subprocess.CalledProcessError as e:
-            if e.returncode == 9:
-                logger.warning("## User already exists.")
-            else:
-                logger.error(f"## Error creating user: {e}")
-                return False
-        logger.info("#### Created munge user and group")
+        self._create_user_and_group(
+            munge_user_name, munge_group_name, munge_user_uid, munge_group_gid
+        )
 
         # Create munge paths
         for munge_path in [munge_log_dir, munge_etc_dir, munge_seed_dir]:
@@ -292,30 +279,65 @@ class SlurmctldManager:
             os.chown(f"{munge_path}", int(munge_user_uid), int(munge_group_gid))
 
         # Create munge.key
-        munge_key = self.generate_munge_key()
-        self.write_munge_key(munge_key)
+        #munge_key = self.generate_munge_key()
+        #self.write_munge_key(munge_key)
 
         # Create /etc/default/munge
-        munge_options = [
+        munge_options_str = (
             f"--log-file={munge_log_dir}/munged.log "
             f"--key-file={munge_etc_dir}/munge.key "
             f"--pid-file={munge_pid_dir}/munged.pid "
             f"--seed-file={munge_seed_dir}/munged.seed "
-            f"--socket={munge_socket_dir}/munge.socket.2"
-        ]
-        munge_options_str = "".join(munge_options)
+            f"--socket={self._munge_socket_path}"
+        )
         munge_defaults_file.write_text(f'OPTIONS="{munge_options_str}"')
 
         # Create the systemd service file
         munge_systemd_service_file.write_text(MUNGE_SYSTEMD_SERVICE_FILE)
         systemd.daemon_reload()
         systemd.service_enable("munge")
-        systemd.service_start("munge")
+        # systemd.service_start("munge")
+
+    def _create_user_and_group(self, user_name: str, group_name: str, uid: str, gid: str) -> None:
+        """Given a user_name, group_name, uid, and gid, create the respective group and user."""
+        logger.info(f"Creating group: {group_name}")
+        try:
+            subprocess.check_output(["groupadd", "--gid", gid, group_name])
+        except subprocess.CalledProcessError as e:
+            if e.returncode == 9:
+                logger.warning(f"Group, {group_name}, already exists.")
+            else:
+                logger.error(f"Error creating group, {group_name} : {e}")
+                return False
+
+        logger.info(f"Creating user: {user_name}")
+        try:
+            subprocess.check_output(
+                [
+                    "adduser",
+                    "--system",
+                    "--gid",
+                    gid,
+                    "--uid",
+                    uid,
+                    "--no-create-home",
+                    "--home",
+                    "/nonexistent",
+                    user_name,
+                ]
+            )
+        except subprocess.CalledProcessError as e:
+            if e.returncode == 9:
+                logger.warning(f"User, {user_name} already exists.")
+            else:
+                logger.error(f"Error creating user, {user_name}: {e}")
+                return False
+        logger.info(f"Created user, {user_name} with {uid} and group, {group_name} with {gid}.")
 
     def version(self) -> str:
         """Return slurm version."""
         slurmctld_version = ""
-        if self._user_provided_slurm:
+        if self._user_provided_slurm_prefix:
             try:
                 slurmctld_version_out = subprocess.check_output([self._slurmctld_bin_path, "-V"])
             except subprocess.CalledProcessError as e:
@@ -323,7 +345,7 @@ class SlurmctldManager:
                 logger.error("Error obtaining slurmctld version.")
             slurmctld_version = slurmctld_version_out.decode().strip().split()[1]
         else:
-            slurmctld_version = self._slurmctld_package.version()
+            slurmctld_version = CharmedHPCPackageLifecycleManager("slurmctld").version()
         return slurmctld_version
 
     def slurm_cmd(self, command, arg_string) -> None:
@@ -384,7 +406,7 @@ class SlurmctldManager:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_munge_key = Path(tmp_dir) / "munge.key"
             subprocess.check_call(
-                [f"{self._mungekey_file_path}", "-c", "-k", tmp_munge_key, "-b", "2048"]
+                [f"{self._mungekey_bin_path}", "-c", "-k", tmp_munge_key, "-b", "2048"]
             )
             munge_key_as_string = b64encode(tmp_munge_key.read_bytes()).decode()
         return munge_key_as_string
@@ -432,11 +454,16 @@ class SlurmctldManager:
         try:
             logger.debug("## Testing if munge is working correctly")
             munge = subprocess.Popen(
-                [self._munge_bin_path, "--socket=/var/run/munge/munge.socket.2", "-n"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                [f"{self._munge_bin_path}", f"--socket={self._munge_socket_path}", "-n"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
             if munge is not None:
                 unmunge = subprocess.Popen(
-                    [self._unmunge_bin_path, "--socket=/var/run/munge/munge.socket.2"], stdin=munge.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                    [f"{self._unmunge_bin_path}", f"--socket={self._munge_socket_path}"],
+                    stdin=munge.stdout,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
                 output = unmunge.communicate()[0].decode()
             if "Success" in output:

@@ -5,7 +5,6 @@
 """SlurmctldCharm."""
 
 import logging
-import shlex
 import subprocess
 from typing import Any, Dict, List, Optional, Union
 
@@ -64,7 +63,11 @@ class SlurmctldCharm(CharmBase):
             user_supplied_slurm_conf_params=str(),
         )
 
-        self._slurmctld_manager = SlurmctldManager(self.config.get("user-provided-slurm"))
+        user_provided_slurm = None
+        if self.config.get("user-provided-slurm-path-prefix") != "":
+            user_provided_slurm = self.config.get("user-provided-slurm-path-prefix")
+
+        self._slurmctld_manager = SlurmctldManager(user_provided_slurm)
 
         self._slurmd = Slurmd(self, "slurmd")
         self._slurmdbd = Slurmdbd(self, "slurmdbd")
@@ -121,6 +124,11 @@ class SlurmctldCharm(CharmBase):
             self.unit.status = BlockedStatus("Error installing slurmctld")
             logger.error("Cannot install slurmctld, please debug.")
             event.defer()
+
+        if self.config.get("install-slurm-exporter") is not False:
+            if self._slurmctld_manager.install_slurm_exporter() is not True:
+                logger.error("Cannot install slurm-exporter, please debug.")
+                event.defer()
 
         self._on_write_slurm_conf(event)
 
@@ -190,7 +198,9 @@ class SlurmctldCharm(CharmBase):
         event.log(f"Draining {nodes} because {reason}.")
 
         try:
-            self._slurmctld_manager.slurm_cmd("scontrol", f'update nodename={nodes} state=drain reason="{reason}"')
+            self._slurmctld_manager.slurm_cmd(
+                "scontrol", f'update nodename={nodes} state=drain reason="{reason}"'
+            )
             event.set_results({"status": "draining", "nodes": nodes})
         except subprocess.CalledProcessError as e:
             event.fail(message=f"Error draining {nodes}: {e.output}")
