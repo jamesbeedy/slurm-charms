@@ -3,8 +3,18 @@
 """constants for slurmd-operator charm."""
 from pathlib import Path
 
-SLURM_USER = "root"
-SLURM_GROUP = "root"
+SLURMD_USER_NAME = "root"
+SLURMD_GROUP_NAME = "root"
+
+SLURM_USER_NAME = "slurm"
+SLURM_GROUP_NAME = "slurm"
+SLURM_USER_UID = "64030"
+SLURM_GROUP_GID = "64030"
+
+MUNGE_USER_NAME = "munge"
+MUNGE_GROUP_NAME = "munge"
+MUNGE_USER_UID = "114"
+MUNGE_GROUP_GID = "121"
 
 MUNGE_KEY_PATH = Path("/etc/munge/munge.key")
 
@@ -39,4 +49,54 @@ ya2212K5q68O5eXOfCnGeMvqIXxqzpdukxSZnLkgk40uFJnJVESd/CxHquqHPUDE
 fy6i2AnB3kUI27D4HY2YSlXLSRbjiSxTfVwNCzDsIh7Czefsm6ITK2+cVWs0hNQ=
 =cs1s
 -----END PGP PUBLIC KEY BLOCK-----
+"""
+
+MUNGE_SYSTEMD_SERVICE_FILE = """
+[Unit]
+Description=MUNGE authentication service
+Documentation=man:munged(8)
+After=network.target
+After=time-sync.target
+
+[Service]
+Type=forking
+EnvironmentFile=-/etc/default/munge
+ExecStart=/srv/slurm/view/sbin/munged $OPTIONS
+PIDFile=/run/munge/munged.pid
+RuntimeDirectory=munge
+RuntimeDirectoryMode=0755
+User=munge
+Group=munge
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+SLURMD_SYSTEMD_SERVICE_FILE = """
+[Unit]
+Description=Slurm node daemon
+After=munge.service network-online.target remote-fs.target sssd.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+EnvironmentFile=-/etc/default/slurmd
+RuntimeDirectory=slurm
+RuntimeDirectoryMode=0755
+ExecStart=/srv/slurm/view/sbin/slurmd --systemd $SLURMD_OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+LimitNOFILE=131072
+LimitMEMLOCK=infinity
+LimitSTACK=infinity
+Delegate=yes
+
+# Uncomment the following lines to disable logging through journald.
+# NOTE: It may be preferable to set these through an override file instead.
+#StandardOutput=null
+#StandardError=null
+
+[Install]
+WantedBy=multi-user.target
 """

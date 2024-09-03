@@ -175,10 +175,7 @@ class Slurm(AutotoolsPackage):
     depends_on("rocm-smi-lib", when="+rsmi")
 
     executables = ["^srun$", "^salloc$"]
-    patch(
-        "https://raw.githubusercontent.com/jamesbeedy/slurm-charms/user_provided_slurm/slurm-user-build/slurm.patch",
-        sha256="e90868f4ea5a97b785c10a717947805186b316f6b72f64a59e53bd12fb446043"
-    )
+    patch("slurm.patch")
 
     @classmethod
     def determine_version(cls, exe):

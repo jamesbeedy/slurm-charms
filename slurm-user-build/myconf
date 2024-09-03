@@ -1,0 +1,2 @@
+DebugFlags=Cgroup
+SlurmdDebug=debug2

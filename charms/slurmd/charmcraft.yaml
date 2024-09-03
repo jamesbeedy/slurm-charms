@@ -66,6 +66,22 @@ config:
          $ juju config slurmd partition-config="DefaultTime=45:00 MaxTime=1:00:00"
         ```
 
+    user-provided-slurm-path-prefix:
+      type: string
+      default: ""
+      description: |
+        Path prefix to the user provided slurm build. Setting this value
+        will cause the charm to configure systemd services to point to the
+        executables inside of the prefix path to use slurm and munge at the provided
+        location instead of installing to the filesystem using apt-get.
+
+        Example:
+          Given the slurm and munge libs, daemons, and executables live at
+          /srv/slurm/view/{bin,sbin,usr,lib,include}, we would configure this option
+          to point to /srv/slurm/view.
+
+          $ juju config slurmd user-provided-slurm-path-prefix=/srv/slurm/view
+
     nhc-conf:
       default: ""
       type: string

@@ -1,8 +1,9 @@
 spack:
   specs:
-  - slurm +readline +hwloc +pmix +restd +nvml +cgroup +rsmi sysconfdir=/etc/slurm
   - openmpi@5.0.3 schedulers=slurm fabrics=auto ^hwloc ^libevent ^pmix
   - dbus system-socket=/var/run/dbus/system_bus_socket
+  - slurm +readline +hwloc +pmix +restd +nvml +cgroup +rsmi +hdf5 sysconfdir=/etc/slurm
+  - munge localstatedir=/var
   concretizer:
     unify: true
   view: /srv/slurm/view

@@ -229,6 +229,7 @@ class SlurmctldManager:
         slurmctld_log_dir = Path("/var/log/slurm")
         slurmctld_etc_dir = Path("/etc/slurm")
         slurmctld_spool_dir = Path("/var/spool/slurmctld")
+        slurmctld_defaults_file = Path("/etc/default/slurmctld")
         slurmctld_systemd_service_file = Path("/lib/systemd/system/slurmctld.service")
 
         slurm_user_name = "slurm"
@@ -239,6 +240,14 @@ class SlurmctldManager:
         self._create_user_and_group(
             slurm_user_name, slurm_group_name, slurm_user_uid, slurm_group_gid
         )
+
+        # Create /etc/default/slurmctld
+        slurmctld_options_str = (
+            f"-f {slurmctld_etc_dir}/slurm.conf"
+        )
+        slurmctld_defaults_file.write_text(f'SLURMCTLD_OPTIONS="{slurmctld_options_str}"')
+
+
 
         # Create slurmctld dirs
         for slurmctld_dir in [slurmctld_log_dir, slurmctld_spool_dir, slurmctld_etc_dir]:

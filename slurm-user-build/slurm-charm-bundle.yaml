@@ -1,35 +1,39 @@
 base: ubuntu@22.04
 
 applications:
-  mysql:
-    charm: mysql
-    channel: 8.0/stable
-    num_units: 1
-  mysql-router:
-    charm: mysql-router
-    channel: dpe/beta
-    num_units: 0
+#  mysql:
+#    charm: mysql
+#    channel: 8.0/stable
+#    num_units: 1
+#  mysql-router:
+#    charm: mysql-router
+#    channel: dpe/beta
+#    num_units: 0
 
   slurmctld:
     charm: ./../_build/slurmctld.charm
     num_units: 1
     options:
       user-provided-slurm-path-prefix: /srv/slurm/view
+    constraints: virt-type=virtual-machine cores=4 mem=4G root-disk=20G
 
   slurmd:
     charm: ./../_build/slurmd.charm
-    num_units: 1
+    num_units: 2
+    options:
+      user-provided-slurm-path-prefix: /srv/slurm/view
+    constraints: virt-type=virtual-machine cores=4 mem=4G root-disk=20G
 
-  slurmdbd:
-    charm: ./../_build/slurmdbd.charm
-    num_units: 1
+#  slurmdbd:
+#    charm: ./../_build/slurmdbd.charm
+#    num_units: 1
 
 relations:
-- - mysql-router:backend-database
-  - mysql:database
-- - slurmdbd:database
-  - mysql-router:database
+#- - mysql-router:backend-database
+#  - mysql:database
+#- - slurmdbd:database
+#  - mysql-router:database
 - - slurmctld:slurmd
   - slurmd:slurmctld
-- - slurmctld:slurmdbd
-  - slurmdbd:slurmctld
+#- - slurmctld:slurmdbd
+#  - slurmdbd:slurmctld

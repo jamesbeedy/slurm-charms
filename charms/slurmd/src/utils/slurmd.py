@@ -96,39 +96,3 @@ def override_service() -> None:
     systemd.daemon_reload()
 
 
-def _start_slurmd_service() -> None:
-    """Start the slurmd service on machine.
-
-    This method is invoked when the slurmd utils module is executed as a runnable
-    script. The method wraps the command traditionally executed by systemd when
-    the slurmd service is started with `systemctl start slurmd`. The difference
-    is that this method attempts to start the slurmd daemon over the course of
-    15 minutes since the slurm.conf file may not be ready on the slurmctld server.
-    """
-    # Environment variables must be expanded here because the Popen
-    # command will fail to execute if the inline environment variable
-    # has a whitespace-delimited value. $SLURMD_OPTIONS is white-space
-    # delimited, so it is expanded here to simplify the call to Popen.
-    slurmd_cmd = shlex.split(os.path.expandvars("/usr/sbin/slurmd -D -s $SLURMD_OPTIONS"))
-
-    # Try to start slurmd with ~5 seconds in-between each attempt. Timeout after 15 minutes.
-    end_time = datetime.datetime.now() + datetime.timedelta(minutes=15)
-    while True:
-        if datetime.datetime.now() >= end_time:
-            _logger.error("Failed to start slurmd daemon. Timeout exceeded")
-            sys.exit(1)
-        else:
-            try:
-                process = subprocess.Popen(slurmd_cmd, env=os.environ)
-                # There needs to be a slight delay here to give slurmd
-                # enough time to fail if configuration file is not ready yet.
-                # If timeout is reached, this means the slurmd is running.
-                # If exit code is returned, this means slurmd failed and is not running.
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                _logger.info("Slurmd successfully started")
-                break
-
-
-if __name__ == "__main__":  # pragma: nocover
-    _start_slurmd_service()

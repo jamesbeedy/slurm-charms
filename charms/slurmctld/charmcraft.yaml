@@ -78,10 +78,6 @@ config:
 
           $ juju config slurmctld user-provided-slurm-path-prefix=/srv/slurm/view
 
-          
-            
-            
-
     default-partition:
       type: string
       default: ""
@@ -101,8 +97,11 @@ config:
     cgroup-parameters:
       type: string
       default: |
-        CgroupAutomount=yes
         ConstrainCores=yes
+        ConstrainDevices=yes
+        ConstrainRAMSpace=yes
+        ConstrainSwapSpace=yes
+
       description: |
         User supplied configuration for `cgroup.conf`.
 
