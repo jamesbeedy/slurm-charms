@@ -122,15 +122,38 @@ class CharmedHPCPackageLifecycleManager:
         return slurm_package_vers
 
 
+class CommonPackagesLifecycleManager:
+    """Facilitate common package lifecycles."""
+
+    def install(self) -> bool:
+        """Install package using lib apt."""
+        package_installed = False
+
+        try:
+            apt.update()
+            apt.add_package(["nfs-common"])
+            package_installed = True
+        except apt.PackageNotFoundError:
+            logger.error("Package not found in package cache or on system.")
+        except apt.PackageError as e:
+            logger.error(f"Could not install package. Reason: {e.message}")
+
+        return package_installed
+
+
 class SlurmctldManager:
     """SlurmctldManager."""
 
     def __init__(self):
         self._munge_package = CharmedHPCPackageLifecycleManager("munge")
         self._slurmctld_package = CharmedHPCPackageLifecycleManager("slurmctld")
+        self._common_packages = CommonPackagesLifecycleManager()
 
     def install(self) -> bool:
-        """Install slurmctld and munge to the system."""
+        """Install slurmctld, munge, and common packages to the system."""
+        if self._common_packages.install() is not True:
+            return False
+
         if self._slurmctld_package.install() is not True:
             return False
         systemd.service_stop("slurmctld")
