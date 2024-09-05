@@ -120,7 +120,7 @@ class CommonPackagesLifecycleManager:
 
         try:
             apt.update()
-            apt.add_package(["nfs-common", "libpmix-dev", "openmpi-bin"])
+            apt.add_package(["libpmix-dev", "openmpi-bin"])
             package_installed = True
         except apt.PackageNotFoundError:
             logger.error("Package not found in package cache or on system.")
