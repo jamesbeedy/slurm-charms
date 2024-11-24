@@ -101,7 +101,6 @@ config:
         ConstrainDevices=yes
         ConstrainRAMSpace=yes
         ConstrainSwapSpace=yes
-        SignalChildrenProcesses=yes
       description: |
         User supplied configuration for `cgroup.conf`.
 
