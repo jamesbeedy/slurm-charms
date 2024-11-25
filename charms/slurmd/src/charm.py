@@ -7,7 +7,6 @@
 import logging
 from typing import Any, Dict, cast
 
-from constants import CHARM_MAINTAINED_NODE_PARAMETERS
 from interface_slurmctld import Slurmctld, SlurmctldAvailableEvent
 from ops import (
     ActionEvent,
