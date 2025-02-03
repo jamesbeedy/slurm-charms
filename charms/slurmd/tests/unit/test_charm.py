@@ -57,6 +57,7 @@ class TestCharm(TestCase):
 
     @patch("utils.rdma._override_ompi_conf")
     @patch("utils.nhc.install")
+    @patch("utils.nhc.generate_config")
     @patch("utils.service.override_service")
     @patch("charms.operator_libs_linux.v0.juju_systemd_notices.SystemdNotices.subscribe")
     @patch("charms.operator_libs_linux.v0.apt.add_package")
