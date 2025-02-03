@@ -20,6 +20,8 @@ import tempfile
 import textwrap
 from pathlib import Path
 
+from constants import CHARM_MAINTAINED_NHC_CONFIG
+
 _logger = logging.getLogger(__name__)
 
 
@@ -95,14 +97,14 @@ def get_config() -> str:
         raise
 
 
-def generate_config(nhc_config: str) -> None:
+def generate_config(nhc_config: str = "") -> None:
     """Generate new nhc.conf configuration file.
 
     Args:
         nhc_config: NHC configuration to override default.
     """
     try:
-        Path("/etc/nhc/nhc.conf").write_text(nhc_config)
+        Path("/etc/nhc/nhc.conf").write_text(CHARM_MAINTAINED_NHC_CONFIG + nhc_config)
     except FileNotFoundError as e:
         _logger.error(f"error rendering nhc.conf: {e}")
         raise

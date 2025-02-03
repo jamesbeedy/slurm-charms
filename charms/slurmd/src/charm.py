@@ -90,6 +90,7 @@ class SlurmdCharm(CharmBase):
 
             self.unit.status = MaintenanceStatus("Installing nhc")
             nhc.install()
+            nhc.generate_config()
 
             self.unit.status = MaintenanceStatus("Installing RDMA packages")
             rdma.install()
