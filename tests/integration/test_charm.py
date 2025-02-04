@@ -180,3 +180,84 @@ async def test_slurmdbd_port_listen(ops_test: OpsTest) -> None:
     slurmdbd_unit = ops_test.model.applications[SLURMDBD].units[0]
     res = await slurmdbd_unit.ssh("sudo lsof -t -n -iTCP:6819 -sTCP:LISTEN")
     assert res != ""
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.order(6)
+@tenacity.retry(
+    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
+    stop=tenacity.stop_after_attempt(3),
+    reraise=True,
+)
+async def test_new_node_state_and_reason(ops_test: OpsTest) -> None:
+    """Test that new nodes join the cluster in a down state and with an appropriate reason."""
+    logger.info("Testing new slurmd unit is down with reason: 'New node.'")
+
+    sackd_unit = ops_test.model.applications[SACKD].units[0]
+    slurmd_node_state_reason = await sackd_unit.ssh(
+        "sinfo -R | awk '{print $1, $2}' | sed 1d | tr -d '\n'"
+    )
+    slurmd_node_state = await sackd_unit.ssh("sinfo | awk '{print $5}' | sed 1d | tr -d '\n'")
+
+    assert slurmd_node_state_reason == "New node."
+    assert slurmd_node_state == "down"
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.order(7)
+@tenacity.retry(
+    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
+    stop=tenacity.stop_after_attempt(3),
+    reraise=True,
+)
+async def test_node_configured_action(ops_test: OpsTest) -> None:
+    """Test that the node-configured charm action makes slurmd unit 'idle'."""
+    logger.info("Testing node-configured charm actions makes node status 'idle'.")
+
+    slurmd_unit = ops_test.model.applications[SLURMD].units[0]
+    action = await slurmd_unit.run_action("node-configured")
+    action = await action.wait()
+
+    sackd_unit = ops_test.model.applications[SACKD].units[0]
+    slurmd_node_state = await sackd_unit.ssh("sinfo | awk '{print $5}' | sed 1d | tr -d '\n'")
+    assert slurmd_node_state == "idle"
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.order(8)
+@tenacity.retry(
+    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
+    stop=tenacity.stop_after_attempt(3),
+    reraise=True,
+)
+async def test_health_check_program(ops_test: OpsTest) -> None:
+    """Test that running the HealthCheckProgram doesn't put the node in a drain state."""
+    logger.info("Test running node health check doesn't drain node.")
+
+    slurmd_unit = ops_test.model.applications[SLURMD].units[0]
+    _ = await slurmd_unit.ssh("sudo /usr/sbin/charmed-hpc-nhc-wrapper")
+
+    sackd_unit = ops_test.model.applications[SACKD].units[0]
+    slurmd_node_state = await sackd_unit.ssh("sinfo | awk '{print $5}' | sed 1d | tr -d '\n'")
+    assert slurmd_node_state == "idle"
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.order(9)
+@tenacity.retry(
+    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
+    stop=tenacity.stop_after_attempt(3),
+    reraise=True,
+)
+async def test_job_submission_works(ops_test: OpsTest) -> None:
+    """Test that a job can be submitted to the cluster."""
+    logger.info("Test a simple job to get the hostname of the compute node.")
+
+    # Get the hostname of the compute node via ssh
+    slurmd_unit = ops_test.model.applications[SLURMD].units[0]
+    res_from_ssh = await slurmd_unit.ssh("hostname -s")
+
+    # Get the hostname of the compute node from slurm job
+    sackd_unit = ops_test.model.applications[SACKD].units[0]
+    res_from_slurm_job = await sackd_unit.ssh("srun -pslurmd hostname -s")
+    assert res_from_ssh == res_from_slurm_job
