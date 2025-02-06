@@ -18,7 +18,7 @@
 from unittest.mock import Mock, PropertyMock, patch
 
 from charm import SlurmrestdCharm
-from ops.model import ActiveStatus, BlockedStatus
+from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.testing import Harness
 from pyfakefs.fake_filesystem_unittest import TestCase
 
@@ -71,6 +71,17 @@ class TestCharm(TestCase):
         self.harness.charm.on.update_status.emit()
 
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
+
+    @patch(
+        "interface_slurmctld.Slurmctld.is_joined",
+        new_callable=PropertyMock(return_value=True),
+    )
+    def test_update_status_no_slurmctld_data(self, *_) -> None:
+        """Test `UpdateStatusEvent` hook success."""
+        self.harness.charm._stored.slurm_installed = True
+        self.harness.charm.on.update_status.emit()
+
+        self.assertEqual(self.harness.charm.unit.status, WaitingStatus("Waiting on relation data from slurmctld."))
 
     def test_update_status_fail(self):
         """Test `UpdateStatusEvent` hook failure."""
