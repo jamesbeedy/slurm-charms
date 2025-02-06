@@ -20,7 +20,7 @@ import tempfile
 import textwrap
 from pathlib import Path
 
-from constants import NHC_CONFIG 
+from constants import NHC_CONFIG
 
 _logger = logging.getLogger(__name__)
 
