@@ -90,6 +90,7 @@ class SlurmrestdCharm(CharmBase):
         """Stop the slurmrestd daemon if slurmctld is unavailable."""
         self._slurmrestd.service.disable()
         self._slurmrestd.munge.service.disable()
+        self._stored.slurmctld_relation_data_available = False
         self._check_status()
 
     def _check_status(self) -> bool:
