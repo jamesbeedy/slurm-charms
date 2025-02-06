@@ -39,6 +39,7 @@ class TestCharm(TestCase):
     )
     def test_install_success(self, *_) -> None:
         """Test `InstallEvent` hook success."""
+        self.harness.charm._stored.slurmctld_relation_data_available = True
         self.harness.charm._slurmrestd.install = Mock()
         self.harness.charm._slurmrestd.version = Mock(return_value="24.05.2-1")
         self.harness.charm.on.install.emit()
@@ -65,6 +66,7 @@ class TestCharm(TestCase):
     )
     def test_update_status_success(self, *_) -> None:
         """Test `UpdateStatusEvent` hook success."""
+        self.harness.charm._stored.slurmctld_relation_data_available = True
         self.harness.charm._stored.slurm_installed = True
         self.harness.charm.on.update_status.emit()
 
