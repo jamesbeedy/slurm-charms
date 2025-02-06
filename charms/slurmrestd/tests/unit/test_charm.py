@@ -81,7 +81,10 @@ class TestCharm(TestCase):
         self.harness.charm._stored.slurm_installed = True
         self.harness.charm.on.update_status.emit()
 
-        self.assertEqual(self.harness.charm.unit.status, WaitingStatus("Waiting on relation data from slurmctld."))
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            WaitingStatus("Waiting on relation data from slurmctld."),
+        )
 
     def test_update_status_fail(self):
         """Test `UpdateStatusEvent` hook failure."""
