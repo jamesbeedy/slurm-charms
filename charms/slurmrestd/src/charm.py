@@ -34,6 +34,7 @@ class SlurmrestdCharm(CharmBase):
         super().__init__(*args)
 
         self._stored.set_default(slurm_installed=False)
+        self._stored.set_default(slurmctld_relation_data_available=False)
 
         self._slurmrestd = SlurmrestdManager(snap=False)
         self._slurmctld = Slurmctld(self, "slurmctld")
@@ -75,7 +76,13 @@ class SlurmrestdCharm(CharmBase):
             self._slurmrestd.munge.key.set(event.munge_key)
             self._slurmrestd.config.dump(SlurmConfig.from_str(event.slurm_conf))
             self._slurmrestd.munge.service.restart()
-            self._slurmrestd.service.restart()
+
+            self._stored.slurmctld_relation_data_available = True
+
+            if not self._slurmrestd.service.active():
+                self._slurmrestd.service.enable()
+            else:
+                self._slurmrestd.service.restart()
 
         self._check_status()
 
@@ -95,6 +102,10 @@ class SlurmrestdCharm(CharmBase):
 
         if not self._slurmctld.is_joined:
             self.unit.status = BlockedStatus("Need relations: slurmctld")
+            return False
+
+        if self._slurmctld.is_joined and self._stored.slurmctld_relation_data_available is False:
+            self.unit.status = WaitingStatus("Waiting on relation data from slurmctld.")
             return False
 
         self.unit.status = ActiveStatus()
