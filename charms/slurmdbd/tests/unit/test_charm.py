@@ -33,6 +33,7 @@ class TestCharm(TestCase):
         self.setUpPyfakefs()
         self.harness.begin()
 
+    @patch("charms.hpc_libs.v0.slurm_ops._SystemctlServiceManager.enable")
     def test_install_success(self, *_) -> None:
         """Test `InstallEvent` hook success."""
         self.harness.set_leader(True)
