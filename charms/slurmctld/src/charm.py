@@ -170,12 +170,18 @@ class SlurmctldCharm(CharmBase):
         """Check that we have slurm_config when slurmrestd available otherwise defer the event."""
         if self.model.unit.is_leader():
             if self._check_status():
-                self._slurmrestd.set_slurm_config_on_app_relation_data(
-                    str(self._slurmctld.config.load())
-                )
-                return
-            logger.debug("Cluster not ready yet, deferring event.")
-            event.defer()
+                if self._stored.slurmdbd_host != "":
+                    self._slurmrestd.set_slurm_config_on_app_relation_data(
+                        str(self._slurmctld.config.load()),
+                    )
+                    return
+                else:
+                    logger.debug("Need slurmdbd for slurmrestd relation.")
+                    event.defer()
+                    return
+            else:
+                logger.debug("Cluster not ready yet, deferring event.")
+                event.defer()
 
     def _on_slurmdbd_available(self, event: SlurmdbdAvailableEvent) -> None:
         self._stored.slurmdbd_host = event.slurmdbd_host
@@ -328,7 +334,7 @@ class SlurmctldCharm(CharmBase):
                 self.new_nodes = new_nodes_from_slurm_config.copy()
 
             # slurmrestd needs the slurm.conf file, so send it every time it changes.
-            if self._slurmrestd.is_joined is not False:
+            if self._slurmrestd.is_joined is not False and self._stored.slurmdbd_host != "":
                 self._slurmrestd.set_slurm_config_on_app_relation_data(str(slurm_config))
         else:
             logger.debug("## Should write slurm.conf, but we don't have it. " "Deferring.")
