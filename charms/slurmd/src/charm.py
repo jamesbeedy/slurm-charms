@@ -108,6 +108,8 @@ class SlurmdCharm(CharmBase):
             service.override_service()
             self._systemd_notices.subscribe()
 
+            self._slurmd.service.enable()
+
             self._stored.slurm_installed = True
         except (SlurmOpsError, gpu.GPUOpsError) as e:
             logger.error(e.message)
