@@ -418,33 +418,21 @@ class _SystemctlServiceManager(_ServiceManager):
         """
         _systemctl("stop", self._service.value)
 
-    def enable(self, now: bool = False) -> None:
+    def enable(self) -> None:
         """Enable service.
-
-        Args:
-            now: If `True`, also start the service after enabling it by passing the `--now` flag.
 
         Raises:
             SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
         """
-        cmd = ["enable"]
-        if now:
-            cmd.append("--now")
-        _systemctl(*cmd, self._service.value)
+        _systemctl("enable", self._service.value)
 
-    def disable(self, now: bool = False) -> None:
+    def disable(self) -> None:
         """Disable service.
-
-        Args:
-            now: If `True`, also stop the service after enabling it be passing the `--now` flag.
 
         Raises:
             SlurmOpsError: Raised if `systemctl disable ...` returns a non-zero returncode.
         """
-        cmd = ["disable"]
-        if now:
-            cmd.append("--now")
-        _systemctl(*cmd, self._service.value)
+        _systemctl("disable", self._service.value)
 
     def restart(self) -> None:
         """Restart service.
