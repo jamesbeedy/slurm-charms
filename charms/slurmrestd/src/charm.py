@@ -54,6 +54,7 @@ class SlurmrestdCharm(CharmBase):
 
         try:
             self._slurmrestd.install()
+            self._slurmrestd.service.enable()
             self.unit.set_workload_version(self._slurmrestd.version())
             self._stored.slurm_installed = True
         except SlurmOpsError as e:
@@ -79,10 +80,10 @@ class SlurmrestdCharm(CharmBase):
 
             self._stored.slurmctld_relation_data_available = True
 
-            if not self._slurmrestd.service.active():
-                self._slurmrestd.service.enable()
-            else:
+            if self._slurmrestd.service.active():
                 self._slurmrestd.service.restart()
+            else:
+                self._slurmrestd.service.start()
 
         self._check_status()
 
@@ -107,6 +108,10 @@ class SlurmrestdCharm(CharmBase):
 
         if self._slurmctld.is_joined and self._stored.slurmctld_relation_data_available is False:
             self.unit.status = WaitingStatus("Waiting on relation data from slurmctld.")
+            return False
+
+        if not self._slurmrestd.service.active():
+            self.unit.status = BlockedStatus("slurmrestd is not starting")
             return False
 
         self.unit.status = ActiveStatus()
