@@ -58,7 +58,7 @@ class SackdCharm(CharmBase):
         try:
             self._sackd.install()
             # Ensure sackd does not start before relation established
-            self._sackd.service.disable()
+            self._sackd.service.enable()
             self.unit.set_workload_version(self._sackd.version())
             self._stored.sackd_installed = True
         except SlurmOpsError as e:
@@ -99,7 +99,11 @@ class SackdCharm(CharmBase):
 
         # Restart sackd after we write event data to respective locations.
         self._sackd.munge.service.restart()  # TODO change this once auth/slurm in place
-        self._sackd.service.enable()
+        if self._sackd.service.active():
+            self._sackd.service.restart()
+        else:
+            self._sackd.service.start()
+
         if self._check_status():
             self.unit.status = ActiveStatus()
 

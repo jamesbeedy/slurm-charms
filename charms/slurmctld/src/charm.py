@@ -111,7 +111,7 @@ class SlurmctldCharm(CharmBase):
                 self._slurmctld.munge.key.generate()
                 self._stored.munge_key = self._slurmctld.munge.key.get()
                 self._slurmctld.munge.service.restart()
-                self._slurmctld.service.restart()
+                self._slurmctld.service.enable()
                 self._slurmctld.exporter.service.enable()
                 self.unit.set_workload_version(self._slurmctld.version())
 
@@ -294,7 +294,7 @@ class SlurmctldCharm(CharmBase):
             return
 
         if slurm_config := self._assemble_slurm_conf():
-            self._slurmctld.service.disable()
+            self._slurmctld.service.stop()
             self._slurmctld.config.dump(slurm_config)
 
             # Write out any cgroup parameters to /etc/slurm/cgroup.conf.
@@ -304,7 +304,7 @@ class SlurmctldCharm(CharmBase):
                     cgroup_config.update(user_supplied_cgroup_params)
                 self._slurmctld.cgroup.dump(CgroupConfig(**cgroup_config))
 
-            self._slurmctld.service.enable()
+            self._slurmctld.service.start()
             self._slurmctld.scontrol("reconfigure")
 
             # Transitioning Nodes

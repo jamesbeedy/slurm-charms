@@ -37,7 +37,7 @@ class TestCharm(TestCase):
         """Test install success behavior."""
         with self.ctx(self.ctx.on.install(), State()) as manager:
             manager.charm._sackd.install = Mock()
-            manager.charm._sackd.service.disable = Mock()
+            manager.charm._sackd.service.enable = Mock()
             manager.charm._sackd.version = Mock(return_value="24.05.2-1")
             manager.run()
             self.assertTrue(manager.charm._stored.sackd_installed)
