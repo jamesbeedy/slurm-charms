@@ -248,8 +248,9 @@ class SlurmdbdCharm(CharmBase):
                     "jwt_key": "/var/lib/slurm/checkpoint/jwt_hs256.key"
                 }
 
-            self._slurmdbd.service.disable()
+            self._slurmdbd.service.stop()
             self._slurmdbd.config.dump(slurmdbd_config)
+            self._slurmdbd.service.start()
 
             # At this point, we must guarantee that slurmdbd is correctly
             # initialized. Its startup might take a while, so we have to wait

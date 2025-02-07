@@ -200,7 +200,11 @@ class SlurmdCharm(CharmBase):
             logger.error("failed to restart munge")
             logger.error(e.message)
 
-        self._slurmd.service.restart()
+        if self._slurmd.service.active():
+            self._slurmd.service.restart()
+        else:
+            self._slurmd.service.start()
+
         self._check_status()
 
     def _on_slurmctld_unavailable(self, _) -> None:
@@ -210,7 +214,7 @@ class SlurmdCharm(CharmBase):
         self._stored.nhc_params = ""
         self._stored.munge_key = ""
         self._stored.slurmctld_host = ""
-        self._slurmd.service.disable()
+        self._slurmd.service.stop()
         self._check_status()
 
     def _on_slurmd_started(self, _: ServiceStartedEvent) -> None:
