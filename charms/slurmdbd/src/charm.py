@@ -68,7 +68,7 @@ class SlurmdbdCharm(CharmBase):
             if self.unit.is_leader():
                 self._slurmdbd.install()
                 self.unit.set_workload_version(self._slurmdbd.version())
-                self._slurmdbd.munge.service.enable()
+                self._slurmdbd.service.enable()
 
                 self._stored.slurm_installed = True
             else:
