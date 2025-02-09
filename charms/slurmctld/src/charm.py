@@ -250,14 +250,16 @@ class SlurmctldCharm(CharmBase):
             event.defer()
             return
 
-        if gres_info := event.gres_info:
+        node_name = event.node_name
+        gres_info = event.gres_info
+        if gres_info and node_name:
             gres_nodes = []
             for resource in gres_info:
-                node = GRESNode(NodeName=event.node_name, **resource)
+                node = GRESNode(NodeName=node_name, **resource)
                 gres_nodes.append(node)
 
             with self._slurmctld.gres.edit() as config:
-                config.nodes[event.node_name] = gres_nodes
+                config.nodes[node_name] = gres_nodes
 
     def _refresh_gres_conf(self, event: SlurmdDepartedEvent) -> None:
         """Write out current gres.conf configuration file for Generic Resource scheduling.
