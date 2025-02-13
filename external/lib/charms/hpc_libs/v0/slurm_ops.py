@@ -242,7 +242,6 @@ class _ConfigManager(ABC):
     @property
     def path(self) -> Path:
         """Return the config file path."""
-        return Path(self._config_path)
 
     @abstractmethod
     def load(self) -> BaseModel:
@@ -265,6 +264,11 @@ class _ConfigManager(ABC):
 
 class _AcctGatherConfigManager(_ConfigManager):
     """Manage the `acct_gather.conf` configuration file."""
+
+    @property
+    def path(self) -> Path:
+        """Return the config file path."""
+        return Path(self._config_path)
 
     def load(self) -> AcctGatherConfig:
         """Load the current `acct_gather.conf` configuration file."""
