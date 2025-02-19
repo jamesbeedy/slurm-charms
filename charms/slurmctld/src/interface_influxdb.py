@@ -6,10 +6,10 @@
 
 import json
 import logging
+import secrets
 
 import influxdb
 import requests
-import secrets
 from influxdb.exceptions import InfluxDBClientError
 from ops import (
     EventBase,
@@ -19,7 +19,6 @@ from ops import (
     RelationBrokenEvent,
     RelationJoinedEvent,
 )
-from utils import generate_random_string
 
 logger = logging.getLogger()
 
