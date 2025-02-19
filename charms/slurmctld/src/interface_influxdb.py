@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
+# Copyright 2025 Omnivector, LLC
+# See LICENSE file for licensing details.
+
 """Influxdb interface."""
+
 import json
 import logging
 
 import influxdb
 import requests
+import secrets
 from influxdb.exceptions import InfluxDBClientError
 from ops import (
     EventBase,
@@ -100,7 +105,7 @@ class InfluxDB(Object):
             logger.debug("Slurmctld Leader influxdb._on_relation_joined()")
 
             if (app_data := event.relation.data.get(self.model.app)) is not None:
-                logger.debug(f"Infulxdb interface app data: {app_data}")
+                logger.debug(f"Influxdb interface app data: {app_data}")
 
                 influxdb_admin_info = app_data.get("influxdb_admin_info", "")
 
@@ -138,7 +143,7 @@ class InfluxDB(Object):
                             )
 
                             # Influxdb slurm user password
-                            influx_slurm_password = generate_random_string(20)
+                            influx_slurm_password = secrets.token_urlsafe(32)
 
                             # Only create the user and db if they don't already exist
                             users = [db["user"] for db in client.get_list_users()]

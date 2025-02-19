@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020-2024 Omnivector Solutions, LLC
+# Copyright 2020-2025 Omnivector, LLC
 # See LICENSE file for licensing details.
 
 """SlurmctldCharm."""
@@ -158,7 +158,7 @@ class SlurmctldCharm(CharmBase):
                 self._slurmctld_peer.cluster_name = cluster_name
             except SlurmctldPeerError as e:
                 self.unit.status = BlockedStatus(e.message)
-                logger.debug(e.message)
+                logger.error(e.message)
                 event.defer()
                 return
 
@@ -238,8 +238,8 @@ class SlurmctldCharm(CharmBase):
             "ProfileInfluxDBPass": event.influxdb_pass,
             "ProfileInfluxDBDatabase": event.influxdb_database,
             "ProfileInfluxDBRTPolicy": event.influxdb_policy,
+            "SysfsInterfaces": interfaces(),
         }
-        acct_gather_params.update({"SysfsInterfaces": interfaces()})
         logger.debug(f"## _stored.acct_gather_params: {acct_gather_params}")
         self._stored.acct_gather_params = acct_gather_params
 
@@ -432,7 +432,7 @@ class SlurmctldCharm(CharmBase):
             try:
                 self._slurmctld.scontrol("reconfigure")
             except SlurmOpsError as e:
-                logger.debug(e)
+                logger.error(e)
                 return
 
             # Transitioning Nodes
