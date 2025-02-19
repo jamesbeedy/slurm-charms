@@ -108,7 +108,7 @@ class SackdCharm(CharmBase):
             else:
                 self._sackd.service.start()
         except SlurmOpsError as e:
-            logger.debug(e)
+            logger.error(e)
 
         self._check_status()
 
