@@ -287,7 +287,7 @@ class Slurmd(Object):
 
         return gres_info
 
-    def get_active_nodes(self) -> List:
+    def get_active_nodes(self) -> list[str]:
         """Get active nodes."""
         nodes = []
         if relations := self.framework.model.relations.get(self._relation_name):
