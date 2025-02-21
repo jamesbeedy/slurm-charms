@@ -145,24 +145,41 @@ class SlurmctldCharm(CharmBase):
             event.defer()
 
     def _on_start(self, event: StartEvent) -> None:
-        """Set cluster_name and write slurm.conf."""
-        if self.unit.is_leader() and self._slurmctld_peer.cluster_name is None:
-            if (charm_config_cluster_name := str(self.config.get("cluster-name", ""))) != "":
-                cluster_name = charm_config_cluster_name
+        """Set cluster_name and write slurm.conf.
+
+        Note: The start hook can execute multiple times in a charms lifecycle,
+              for example, after a reboot of the underlying instance. This code safeguards
+              against the potentiality of changing the cluster_name in subsequent start hook
+              executions by applying logic that ensures the cluster_name is only set on the
+              first execution of this hook, we log and return on any subsequent start hook
+              event executions.
+        """
+        if self.unit.is_leader():
+            if self._slurmctld_peer.cluster_name is None:
+                if (charm_config_cluster_name := str(self.config.get("cluster-name", ""))) != "":
+                    cluster_name = charm_config_cluster_name
+                else:
+                    cluster_name = f"{CLUSTER_NAME_PREFIX}-{generate_random_string(4)}"
+
+                logger.debug(f"Cluster Name: {cluster_name}")
+
+                try:
+                    self._slurmctld_peer.cluster_name = cluster_name
+                except SlurmctldPeerError as e:
+                    self.unit.status = BlockedStatus(e.message)
+                    logger.error(e.message)
+                    event.defer()
+                    return
+
+                self._on_write_slurm_conf(event)
+
             else:
-                cluster_name = f"{CLUSTER_NAME_PREFIX}-{generate_random_string(4)}"
-
-            logger.debug(f"## Cluster Name: {cluster_name}")
-
-            try:
-                self._slurmctld_peer.cluster_name = cluster_name
-            except SlurmctldPeerError as e:
-                self.unit.status = BlockedStatus(e.message)
-                logger.error(e.message)
-                event.defer()
-                return
-
-            self._on_write_slurm_conf(event)
+                logger.debug("Cluster name already created - skipping creation.")
+        else:
+            msg = "High availability of slurmctld is not supported at this time."
+            self.unit.status = BlockedStatus(msg)
+            logger.warning(msg)
+            event.defer()
 
     def _on_config_changed(self, event: ConfigChangedEvent) -> None:
         """Perform config-changed operations."""
