@@ -147,7 +147,8 @@ class SlurmctldCharm(CharmBase):
     def _on_start(self, event: StartEvent) -> None:
         """Set cluster_name and write slurm.conf.
 
-        Note: The start hook can execute multiple times in a charms lifecycle,
+        Notes: 
+            - The start hook can execute multiple times in a charms lifecycle,
               for example, after a reboot of the underlying instance. This code safeguards
               against the potentiality of changing the cluster_name in subsequent start hook
               executions by applying logic that ensures the cluster_name is only set on the
