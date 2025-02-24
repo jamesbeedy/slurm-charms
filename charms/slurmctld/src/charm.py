@@ -160,7 +160,7 @@ class SlurmctldCharm(CharmBase):
                 if (charm_config_cluster_name := str(self.config.get("cluster-name", ""))) != "":
                     cluster_name = charm_config_cluster_name
                 else:
-                    cluster_name = f"{CLUSTER_NAME_PREFIX}-{generate_random_string(4)}"
+                    cluster_name = f"{CLUSTER_NAME_PREFIX}-{secrets.token_urlsafe(3)}"
 
                 logger.debug(f"Cluster Name: {cluster_name}")
 
