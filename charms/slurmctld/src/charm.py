@@ -5,6 +5,7 @@
 """SlurmctldCharm."""
 
 import logging
+import secrets
 import shlex
 import subprocess
 from typing import Any, Dict, List, Optional, Union
@@ -43,7 +44,6 @@ from ops import (
     main,
 )
 from slurmutils.models import AcctGatherConfig, CgroupConfig, GRESConfig, GRESNode, SlurmConfig
-from utils import generate_random_string
 
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
 from charms.hpc_libs.v0.is_container import is_container
@@ -147,7 +147,7 @@ class SlurmctldCharm(CharmBase):
     def _on_start(self, event: StartEvent) -> None:
         """Set cluster_name and write slurm.conf.
 
-        Notes: 
+        Notes:
             - The start hook can execute multiple times in a charms lifecycle,
               for example, after a reboot of the underlying instance. This code safeguards
               against the potentiality of changing the cluster_name in subsequent start hook
