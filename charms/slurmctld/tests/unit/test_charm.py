@@ -75,16 +75,20 @@ class TestCharm(TestCase):
         )
 
     @patch("charm.SlurmctldCharm._on_install")
-    @patch("charm.SlurmctldCharm._on_start")
-    def test_slurmctld_peer_exception_raised_when_setting_cluster_name_as_non_leader(
-        self, *_
-    ) -> None:
-        """Test that the exception is raised when attempting to set the cluster_name as a non-leader."""
+    @patch("ops.framework.EventBase.defer")
+    def test_slurmctld_status_in_start_hook_as_non_leader(self, defer, *_) -> None:
+        """Test that the correct status is set if you enter the start hook as a non-leader."""
         self.harness.set_leader(False)
         self.harness.add_relation("slurmctld-peer", self.harness.charm.app.name)
-        self.harness.update_config({"cluster-name": "osd-cluster"})
-        with self.assertRaises(SlurmctldPeerError):
-            self.harness.charm._slurmctld_peer.cluster_name = "thisshouldfail"
+
+        self.harness.charm.on.start.emit()
+
+        defer.assert_called()
+
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            BlockedStatus("High availability of slurmctld is not supported at this time."),
+        )
 
     @patch("charm.SlurmctldCharm._on_write_slurm_conf")
     @patch("charm.SlurmctldCharm._on_install")
