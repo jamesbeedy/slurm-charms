@@ -53,7 +53,8 @@ class SlurmctldPeer(Object):
     def cluster_name(self, name: str) -> None:
         """Set the cluster_name on app relation data."""
         if not self.framework.model.unit.is_leader():
-            raise SlurmctldPeerError("Only the leader can set the cluster_name.")
+            logger.debug("only leader can set the Slurm cluster name")
+            return
 
         if not self._relation:
             raise SlurmctldPeerError(
