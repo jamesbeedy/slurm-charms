@@ -110,11 +110,11 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 15
+LIBPATCH = 17
 
 # Charm library dependencies to fetch during `charmcraft pack`.
 PYDEPS = [
-    "cryptography~=44.0.0",
+    "cryptography~=44.0.1",
     "pyyaml>=6.0.2",
     "python-dotenv~=1.0.1",
     "slurmutils<1.0.0,>=0.11.0",
@@ -241,7 +241,8 @@ class _ConfigManager(ABC):
 
     @property
     def path(self) -> Path:
-        """Return the config file path."""
+        """Return the configuration file path."""
+        return Path(self._config_path)
 
     @abstractmethod
     def load(self) -> BaseModel:
@@ -264,11 +265,6 @@ class _ConfigManager(ABC):
 
 class _AcctGatherConfigManager(_ConfigManager):
     """Manage the `acct_gather.conf` configuration file."""
-
-    @property
-    def path(self) -> Path:
-        """Return the config file path."""
-        return Path(self._config_path)
 
     def load(self) -> AcctGatherConfig:
         """Load the current `acct_gather.conf` configuration file."""
@@ -790,7 +786,7 @@ class _AptManager(_OpsManager):
                     textwrap.dedent(
                         """
                         [Unit]
-                        StartLimitIntervalSec=120
+                        StartLimitIntervalSec=90
                         StartLimitBurst=10
                         [Service]
                         Restart=on-failure
@@ -798,7 +794,6 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
-
                 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/54 -
                 #   Make `sackd` create its service environment file so that we
                 #   aren't required to manually create it here.
@@ -821,7 +816,6 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
-
             case "slurmd":
                 _logger.debug("overriding default slurmd service configuration")
                 self._set_ulimit()
@@ -862,7 +856,7 @@ class _AptManager(_OpsManager):
                     textwrap.dedent(
                         """
                         [Unit]
-                        StartLimitIntervalSec=120
+                        StartLimitIntervalSec=90
                         StartLimitBurst=10
                         [Service]
                         Restart=on-failure
@@ -933,24 +927,6 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
-
-            case "slurmdbd":
-                _logger.debug("Creating slurmdbd service override.")
-                slurmdbd_service_override = Path(
-                    "/etc/systemd/system/slurmdbd.service.d/10-slurmdbd-exec-pre-pid.conf"
-                )
-                slurmdbd_service_override.parent.mkdir(exist_ok=True, parents=True)
-                slurmdbd_service_override.write_text(
-                    textwrap.dedent(
-                        """
-                        [Service]
-                        PermissionsStartOnly=True
-                        RuntimeDirectory=slurmdbd
-                        RuntimeDirectoryMode=0755   
-                        PIDFile=/var/run/slurmdbd/slurmdbd.pid
-                        """
-                    )
-                )
             case _:
                 _logger.debug("'%s' does not require any overrides", self._service_name)
 
@@ -971,14 +947,14 @@ class _JWTKeyManager:
         self._user = user
         self._group = group
 
+    @property
+    def path(self) -> Path:
+        """Get the current jwt keyfile path."""
+        return self._keyfile
+
     def get(self) -> str:
         """Get the current jwt key."""
         return self._keyfile.read_text()
-
-    @property
-    def path(self) -> Path:
-        """Get the current jwt key Path."""
-        return self._keyfile
 
     def set(self, key: str) -> None:
         """Set a new jwt key."""
