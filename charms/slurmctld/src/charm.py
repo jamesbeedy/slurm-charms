@@ -533,8 +533,8 @@ class SlurmctldCharm(CharmBase):
             profiling_parameters = self._assemble_profiling_params()
             logger.debug(f"## profiling_params: {profiling_parameters}")
 
-        slurm_conf = SlurmConfig(
-            **{
+        slurm_conf = SlurmConfig.from_dict(
+            {
                 "ClusterName": self.cluster_name,
                 "SlurmctldAddr": self._ingress_address,
                 "SlurmctldHost": [self._slurmctld.hostname],
