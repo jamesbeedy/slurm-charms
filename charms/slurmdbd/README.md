@@ -33,19 +33,40 @@ $ juju integrate slurmdbd-mysql-router:backend-database mysql:database
 $ juju integrate slurmdbd:database slurmdbd-mysql-router:database
 ```
 
-#### Use your own MySQL database with slurmdbd
+#### Use your own MySQL database with Slurmdbd
 In the case you want to use your own mysql databse inplace of deploying MySQL with `juju`,
 create the db-uri secret and set the appropriate charm config.
 
+See example using dockerized mysql running on localhost.
+
+##### 1) Create a MySQL Database
 ```bash
-juju add-secret db-uri db-uri="mysql://user:password@host:5432/slurm_acct_db"
+docker run --name mysql-slurmdbd \
+    -e MYSQL_USER=testuser \
+    -e MYSQL_PASSWORD=testpassword \
+    -e MYSQL_DATABASE=slurm_acct_db \
+    -e MYSQL_ALLOW_EMPTY_PASSWORD=true \
+    -p 3306:3306 \
+    -d mysql:8.4
+```
+
+##### 2) Add Juju Infrastructure
+```
+ip=`hostname -i`
+
+juju add-model mysql-testing
+
+secret_id=`juju add-secret db-uri db-uri="mysql://testuser:testpassword@$ip:3306/slurm_acct_db"`
+
+juju deploy slurmdbd --config db-uri-secret-id=$secret_id
+juju deploy slurmctld --channel edge
+juju deploy slurmd --channel edge
 
 juju grant-secret db-uri slurmdbd
 
-secret_id=`juju show-secret db-uri --format json | jq -r keys[]`
-juju config slurmdbd db-uri-secret-id="secret:$secret_id"
+juju relate slurmctld slurmdbd
+juju relate slurmctld slurmd
 ```
-
 
 ## Project & Community
 

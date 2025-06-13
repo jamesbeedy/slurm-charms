@@ -53,6 +53,6 @@ config:
   options:
     db-uri-secret-id:
       default:
-      type: string
+      type: secret
       description: |
         The secret-id for db-uri. E.g. "secret:XXXXXXXXXXX" 

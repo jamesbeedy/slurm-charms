@@ -23,12 +23,21 @@ from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 from pyfakefs.fake_filesystem_unittest import TestCase
 
+SECRET_CONTENT = {"db-uri": "mysql://fake-user:fake-password@localhost:3306/slurm_acct_db"}
+
 
 class TestCharm(TestCase):
+
+    _secret_id = ""
+
     def setUp(self) -> None:
         self.harness = Harness(SlurmdbdCharm)
         self.addCleanup(self.harness.cleanup)
         self.setUpPyfakefs()
+
+        self._secret_id = self.harness.add_user_secret(SECRET_CONTENT)
+        self.harness.grant_secret(self._secret_id, "slurmdbd")
+
         self.harness.begin()
 
     @patch("hpc_libs.slurm_ops._SystemctlServiceManager.enable")
@@ -67,13 +76,13 @@ class TestCharm(TestCase):
         """Test `InstallEvent` hook when slurmdbd fails to install."""
         self.harness.set_leader(True)
         self.harness.charm._slurmdbd.install = Mock(
-            side_effect=SlurmOpsError("failed to install slurmd")
+            side_effect=SlurmOpsError("Failed to install slurmdbd.")
         )
         self.harness.charm.on.install.emit()
 
         self.assertEqual(
             self.harness.charm.unit.status,
-            BlockedStatus("failed to install slurmdbd. see logs for further details"),
+            BlockedStatus("Failed to install slurmdbd, see logs for further details."),
         )
         defer.assert_called()
 
@@ -84,7 +93,7 @@ class TestCharm(TestCase):
 
         self.assertEqual(
             self.harness.charm.unit.status,
-            BlockedStatus("failed to install slurmdbd. see logs for further details"),
+            BlockedStatus("Failed to install slurmdbd, see logs for further details."),
         )
 
     @patch("charm.sleep")
@@ -94,7 +103,7 @@ class TestCharm(TestCase):
         self.harness.charm._slurmdbd.service.restart = Mock()
         self.harness.charm._check_slurmdbd(max_attemps=1)
 
-        self.assertEqual(self.harness.charm.unit.status, BlockedStatus("cannot start slurmdbd"))
+        self.assertEqual(self.harness.charm.unit.status, BlockedStatus("Cannot start slurmdbd."))
 
     def test_on_database_created_no_endpoints(self, *_) -> None:
         """Tests that the on_database_created method errors with no endpoints."""
@@ -103,19 +112,19 @@ class TestCharm(TestCase):
         event.endpoints = None
         self.assertRaises(ValueError, self.harness.charm._on_database_created, event)
         self.assertEqual(
-            self.harness.charm.unit.status, BlockedStatus("No database endpoints provided")
+            self.harness.charm.unit.status, BlockedStatus("No database endpoints provided.")
         )
 
         event.endpoints = ""
         self.assertRaises(ValueError, self.harness.charm._on_database_created, event)
         self.assertEqual(
-            self.harness.charm.unit.status, BlockedStatus("No database endpoints provided")
+            self.harness.charm.unit.status, BlockedStatus("No database endpoints provided.")
         )
 
         event.endpoints = " , "
         self.assertRaises(ValueError, self.harness.charm._on_database_created, event)
         self.assertEqual(
-            self.harness.charm.unit.status, BlockedStatus("No database endpoints provided")
+            self.harness.charm.unit.status, BlockedStatus("No database endpoints provided.")
         )
 
     @patch("charm.SlurmdbdCharm._write_config_and_restart_slurmdbd")
@@ -247,21 +256,16 @@ class TestCharm(TestCase):
         self.assertEqual(self.harness.charm._stored.db_info, db_info)
         _write_config_and_restart_slurmdbd.assert_called_once_with(event)
 
-    @patch("charm.SlurmdbdCharm._write_config_and_restart_slurmdbd")
-    def test_user_supplied_db_uri(
-        self, _write_config_and_restart_slurmdbd
-    ) -> None:
-        """Test that db_uri supplied via juju secret parses correctly."""
+    def test_user_supplied_db_uri_parser(self) -> None:
+        """Test that db_uri supplied via juju user secret parses correctly."""
+        self.harness.update_config({"db-uri-secret-id": self._secret_id})
 
-        mysql_unix_port.__delete__.assert_called_once()
         db_info = {
             "StorageUser": "fake-user",
             "StoragePass": "fake-password",
             "StorageLoc": "slurm_acct_db",
-            "StorageHost": "10.2.5.20",
-            "StoragePort": "1234",
+            "StorageHost": "localhost",
+            "StoragePort": "3306",
         }
-        self.assertEqual(self.harness.charm._stored.db_info, db_info)
-        _write_config_and_restart_slurmdbd.assert_called_once_with(event)
 
-
+        self.assertEqual(self.harness.charm._get_db_info(), db_info)
