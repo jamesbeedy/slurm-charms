@@ -250,7 +250,6 @@ class TestCharm(TestCase):
 
     def test_user_supplied_db_uri_parser(self) -> None:
         """Test that db_uri supplied via juju user secret parses correctly."""
-
         db = {
             "StorageUser": "fake-user",
             "StoragePass": "fake-password",
