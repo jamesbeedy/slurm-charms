@@ -55,6 +55,6 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
         f"ubuntu@{unit}:~/sbatch_sleep_job.sh",
     )
     juju.exec("sbatch /home/ubuntu/sbatch_sleep_job.sh", unit=unit)
-    result = juju.exec("sstat 2 --format=NTasks --noheader | awk '{print $1}'", unit=unit)
+    result = juju.exec("sstat 1 --format=NTasks --noheader | awk '{print $1}'", unit=unit)
     # Validate that sstat shows 1 task running
     assert int(result.stdout) == 1

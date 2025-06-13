@@ -23,21 +23,13 @@ from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 from pyfakefs.fake_filesystem_unittest import TestCase
 
-SECRET_CONTENT = {"db-uri": "mysql://fake-user:fake-password@localhost:3306/slurm_acct_db"}
-
 
 class TestCharm(TestCase):
-
-    _secret_id = ""
 
     def setUp(self) -> None:
         self.harness = Harness(SlurmdbdCharm)
         self.addCleanup(self.harness.cleanup)
         self.setUpPyfakefs()
-
-        self._secret_id = self.harness.add_user_secret(SECRET_CONTENT)
-        self.harness.grant_secret(self._secret_id, "slurmdbd")
-
         self.harness.begin()
 
     @patch("hpc_libs.slurm_ops._SystemctlServiceManager.enable")
@@ -258,9 +250,8 @@ class TestCharm(TestCase):
 
     def test_user_supplied_db_uri_parser(self) -> None:
         """Test that db_uri supplied via juju user secret parses correctly."""
-        self.harness.update_config({"db-uri-secret-id": self._secret_id})
 
-        db_info = {
+        db = {
             "StorageUser": "fake-user",
             "StoragePass": "fake-password",
             "StorageLoc": "slurm_acct_db",
@@ -268,4 +259,12 @@ class TestCharm(TestCase):
             "StoragePort": "3306",
         }
 
-        self.assertEqual(self.harness.charm._get_db_info(), db_info)
+        secret_content = {
+            "db-uri": f"mysql://{db['StorageUser']}:{db['StoragePass']}@{db['StorageHost']}:{db['StoragePort']}/{db['StorageLoc']}"
+        }
+
+        secret_id = self.harness.add_user_secret(secret_content)
+        self.harness.grant_secret(secret_id, "slurmdbd")
+
+        self.harness.update_config({"db-uri-secret-id": secret_id})
+        self.assertEqual(self.harness.charm._get_db_info(), db)
