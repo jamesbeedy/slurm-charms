@@ -246,3 +246,22 @@ class TestCharm(TestCase):
         }
         self.assertEqual(self.harness.charm._stored.db_info, db_info)
         _write_config_and_restart_slurmdbd.assert_called_once_with(event)
+
+    @patch("charm.SlurmdbdCharm._write_config_and_restart_slurmdbd")
+    def test_user_supplied_db_uri(
+        self, _write_config_and_restart_slurmdbd
+    ) -> None:
+        """Test that db_uri supplied via juju secret parses correctly."""
+
+        mysql_unix_port.__delete__.assert_called_once()
+        db_info = {
+            "StorageUser": "fake-user",
+            "StoragePass": "fake-password",
+            "StorageLoc": "slurm_acct_db",
+            "StorageHost": "10.2.5.20",
+            "StoragePort": "1234",
+        }
+        self.assertEqual(self.harness.charm._stored.db_info, db_info)
+        _write_config_and_restart_slurmdbd.assert_called_once_with(event)
+
+

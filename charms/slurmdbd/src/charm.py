@@ -8,7 +8,7 @@
 
 import logging
 from time import sleep
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 from urllib.parse import urlparse
 
 from constants import CHARM_MAINTAINED_PARAMETERS, SLURM_ACCT_DB, SLURMDBD_PORT
@@ -20,6 +20,8 @@ from ops import (
     CharmBase,
     ConfigChangedEvent,
     InstallEvent,
+    ModelError,
+    SecretChangedEvent,
     StoredState,
     UpdateStatusEvent,
     WaitingStatus,
@@ -31,6 +33,21 @@ from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, D
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_db_uri_to_dict(db_uri: str) -> Dict:
+    """Convert db_uri to  a dict."""
+    parsed = urlparse(db_uri)
+    db_info = {
+        "scheme": parsed.scheme,
+        "StorageUser": parsed.username,
+        "StoragePass": parsed.password,
+        "StorageHost": parsed.hostname,
+        "StoragePort": parsed.port,
+        "StorageLoc": parsed.path.lstrip("/"),
+    }
+    del db_info["scheme"]
+    return db_info
 
 
 class SlurmdbdCharm(CharmBase):
@@ -59,6 +76,7 @@ class SlurmdbdCharm(CharmBase):
             self._db.on.database_created: self._on_database_created,
             self._slurmctld.on.slurmctld_available: self._on_slurmctld_available,
             self._slurmctld.on.slurmctld_unavailable: self._on_slurmctld_unavailable,
+            self.on.secret_changed: self._on_secret_changed,
         }
         for event, handler in event_handler_bindings.items():
             self.framework.observe(event, handler)
@@ -103,7 +121,14 @@ class SlurmdbdCharm(CharmBase):
 
         # Don't try to write the config before the database has been created.
         # Otherwise, this will trigger a defer on this event, which we don't really need.
-        if self._stored.db_info:
+        if self._get_db_info():
+            self._write_config_and_restart_slurmdbd(event)
+
+    def _on_secret_changed(self, event: SecretChangedEvent) -> None:
+        self._check_status()
+        # Don't try to write the config before the database has been created.
+        # Otherwise, this will trigger a defer on this event, which we don't really need.
+        if self._get_db_info():
             self._write_config_and_restart_slurmdbd(event)
 
     def _on_database_created(self, event: DatabaseCreatedEvent) -> None:
@@ -213,6 +238,7 @@ class SlurmdbdCharm(CharmBase):
             DatabaseCreatedEvent,
             InstallEvent,
             SlurmctldAvailableEvent,
+            SecretChangedEvent,
         ],
     ) -> None:
         """Check that we have what we need before we proceed."""
@@ -235,7 +261,7 @@ class SlurmdbdCharm(CharmBase):
         if binding := self.model.get_binding("slurmctld"):
             slurmdbd_config = SlurmdbdConfig(
                 **CHARM_MAINTAINED_PARAMETERS,
-                **self._stored.db_info,
+                **self._get_db_info(),
                 DbdHost=self._slurmdbd.hostname,
                 DbdAddr=f"{binding.network.ingress_address}",
                 **self._get_user_supplied_parameters(),
@@ -267,6 +293,44 @@ class SlurmdbdCharm(CharmBase):
             return
 
         self._check_status()
+
+    def _get_db_info(self) -> Optional[dict]:
+        """Determine db configuration."""
+        if db_info := self._get_user_suppied_db_config_if_exists():
+            return db_info
+        if (db_info := self._stored.db_info) != {}:
+            return db_info
+        return None
+
+    def _get_user_suppied_db_config_if_exists(self) -> Optional[dict]:
+        """Determine if user supplied db configuration."""
+        if db_uri_secret_id_charm_config := self.config.get("db-uri-secret-id"):
+            logger.debug(f"Attempting to retrieve secret: {db_uri_secret_id_charm_config}")
+            if (db_uri := self._get_db_uri_secret(db_uri_secret_id_charm_config)) is not None:
+                logger.debug("Acquired db-uri from secrets storage.")
+                return _convert_db_uri_to_dict(db_uri)
+            else:
+                logger.debug("db-uri-secret-id supplied but no secret found.")
+        else:
+            logger.debug("No user supplied db-uri.")
+        return None
+
+    def _get_db_uri_secret(self, db_uri_secret_id: str) -> Optional[str]:
+        """Return the db_uri from secrets storage if it exists."""
+        db_uri = ""
+        try:
+            if db_uri_secret := self.model.get_secret(id=db_uri_secret_id):
+                db_uri = db_uri_secret.get_content()["db-uri"]
+            else:
+                self.unit.status = BlockedStatus(f"Cannot access secret: {db_uri_secret_id}")
+                logger.error(f"No secret found for id: {db_uri_secret_id}")
+        except ModelError as e:
+            self.unit.status = BlockedStatus(
+                "Cannot access secret, slurmdbd needs `read` permissions granted."
+            )
+            logger.error(e)
+
+        return db_uri if db_uri != "" else None
 
     def _get_user_supplied_parameters(self) -> Dict[Any, Any]:
         """Gather, parse, and return the user supplied parameters."""
@@ -315,7 +379,7 @@ class SlurmdbdCharm(CharmBase):
             )
             return False
 
-        if self._stored.db_info == {}:
+        if self._get_db_info() is None:
             self.unit.status = WaitingStatus("Waiting on: MySQL")
             return False
 

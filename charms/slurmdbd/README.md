@@ -33,6 +33,20 @@ $ juju integrate slurmdbd-mysql-router:backend-database mysql:database
 $ juju integrate slurmdbd:database slurmdbd-mysql-router:database
 ```
 
+#### Use your own MySQL database with slurmdbd
+In the case you want to use your own mysql databse inplace of deploying MySQL with `juju`,
+create the db-uri secret and set the appropriate charm config.
+
+```bash
+juju add-secret db-uri db-uri="mysql://user:password@host:5432/slurm_acct_db"
+
+juju grant-secret db-uri slurmdbd
+
+secret_id=`juju show-secret db-uri --format json | jq -r keys[]`
+juju config slurmdbd db-uri-secret-id="secret:$secret_id"
+```
+
+
 ## Project & Community
 
 The slurmdbd operator is a project of the [Ubuntu HPC](https://discourse.ubuntu.com/t/high-performance-computing-team/35988) 
