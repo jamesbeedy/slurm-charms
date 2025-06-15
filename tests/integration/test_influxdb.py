@@ -53,10 +53,7 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
     job_id = juju.exec(
         "sbatch", "--parsable", "/home/ubuntu/sbatch_sleep_job.sh", unit=unit
     ).stdout.strip()
-    logger.info(job_id)
+    # Give a few seconds for the job to enter the queue and transition to RUNNING (takes > 5s).
     sleep(10)
-    squeue = juju.exec("squeue", unit=unit)
-    logger.info(squeue.stdout)
     result = juju.exec("sstat", job_id, "--format=NTasks", "--noheader", unit=unit).stdout.strip()
-    logger.info(result)
     assert int(result) == 1
