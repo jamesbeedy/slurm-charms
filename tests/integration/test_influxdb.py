@@ -16,11 +16,10 @@
 """`influxdb` integration tests for the Slurm charms."""
 
 import logging
+from time import sleep
 
 import jubilant
 import pytest
-import tenacity
-from time import sleep
 from constants import INFLUXDB_APP_NAME, SACKD_APP_NAME, SLURMCTLD_APP_NAME
 
 logger = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ def setup_influxdb(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.order(10)
-#@tenacity.retry(stop=tenacity.stop_after_attempt(1))
+# @tenacity.retry(stop=tenacity.stop_after_attempt(1))
 def test_task_accounting_works(juju: jubilant.Juju) -> None:
     """Test that `influxdb` is recording task level info."""
     if INFLUXDB_APP_NAME not in juju.status().apps:
@@ -51,7 +50,9 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
         "tests/integration/testdata/sbatch_sleep_job.sh",
         f"ubuntu@{unit}:~/sbatch_sleep_job.sh",
     )
-    job_id = juju.exec("sbatch", "--parsable", "/home/ubuntu/sbatch_sleep_job.sh", unit=unit).stdout.strip()
+    job_id = juju.exec(
+        "sbatch", "--parsable", "/home/ubuntu/sbatch_sleep_job.sh", unit=unit
+    ).stdout.strip()
     logger.info(job_id)
     sleep(10)
     squeue = juju.exec("squeue", unit=unit)
