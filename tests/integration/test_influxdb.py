@@ -20,6 +20,7 @@ import logging
 import jubilant
 import pytest
 import tenacity
+from time import sleep
 from constants import INFLUXDB_APP_NAME, SACKD_APP_NAME, SLURMCTLD_APP_NAME
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,11 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
         "tests/integration/testdata/sbatch_sleep_job.sh",
         f"ubuntu@{unit}:~/sbatch_sleep_job.sh",
     )
-    juju.exec("sbatch /home/ubuntu/sbatch_sleep_job.sh", unit=unit)
-    result = juju.exec("sstat 2 --format=NTasks --noheader | tr -d ' ' | tr -d '\n'", unit=unit)
-    # Validate that sstat shows 1 task running
-    assert int(result.stdout) == 1
+    job_id = juju.exec("sbatch", "--parsable", "/home/ubuntu/sbatch_sleep_job.sh", unit=unit).stdout.strip()
+    logger.info(job_id)
+    sleep(10)
+    squeue = juju.exec("squeue", unit=unit)
+    logger.info(squeue.stdout)
+    result = juju.exec("sstat", job_id, "--format=NTasks", "--noheader", unit=unit).stdout.strip()
+    logger.info(result)
+    assert int(result) == 1
