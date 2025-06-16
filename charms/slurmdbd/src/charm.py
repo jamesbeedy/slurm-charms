@@ -284,12 +284,14 @@ class SlurmdbdCharm(CharmBase):
                 logger.error(e.message)
                 return
 
-            slurmdbd_config = SlurmdbdConfig(
-                **CHARM_MAINTAINED_PARAMETERS,
-                **db_info if db_info is not None else {},
-                DbdHost=self._slurmdbd.hostname,
-                DbdAddr=f"{binding.network.ingress_address}",
-                **self._get_user_supplied_parameters(),
+            slurmdbd_config = SlurmdbdConfig.from_dict(
+                {
+                    **CHARM_MAINTAINED_PARAMETERS,
+                    **db_info,
+                    "DbdHost": self._slurmdbd.hostname,
+                    "DbdAddr": f"{binding.network.ingress_address}",
+                    **self._get_user_supplied_parameters(),
+                }
             )
 
             # Check that slurmctld is joined and that we have the jwt_key.
@@ -316,7 +318,7 @@ class SlurmdbdCharm(CharmBase):
 
         self._check_status()
 
-    def _get_db_info(self) -> Optional[dict]:
+    def _get_db_info(self) -> Dict[Any, Any]:
         """Determine db configuration."""
         db_info = {}
 
@@ -331,7 +333,7 @@ class SlurmdbdCharm(CharmBase):
         if (db_info := self._stored.db_info) != {}:
             return db_info
 
-        return None
+        return {}
 
     def _get_user_suppied_db_config_if_exists(self) -> Optional[dict]:
         """Determine if user supplied db configuration."""
