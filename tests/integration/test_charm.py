@@ -16,6 +16,7 @@
 """Slurm charm integration tests."""
 
 import logging
+from time import sleep
 
 import jubilant
 import pytest
