@@ -127,7 +127,7 @@ def test_slurmdbd_port_number(juju: jubilant.Juju) -> None:
     port = 6819
 
     logger.info(
-        "testing that the 'slurmctld' service is listening on port '%s' on unit '%s'",
+        "testing that the 'slurmdbd' service is listening on port '%s' on unit '%s'",
         port,
         unit,
     )
