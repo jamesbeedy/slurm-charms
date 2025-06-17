@@ -26,14 +26,20 @@ logger = logging.getLogger(__name__)
 
 
 def setup_influxdb(juju: jubilant.Juju) -> None:
-    """Deploy and integrate `influxdb` with `slurmctld`."""
+    """Deploy and integrate `influxdb` with `slurmctld`.
+
+    Notes:
+        - Sleep for five seconds after the `influxdb` app reaches active status 
+          to give the cluster enough time to reconfigure.
+    """
     logger.info("deploying '%s'", INFLUXDB_APP_NAME)
     juju.deploy(INFLUXDB_APP_NAME)
-
+    
     logger.info("integrating '%s' application with '%s' application")
     juju.integrate(INFLUXDB_APP_NAME, SLURMCTLD_APP_NAME)
-
+    
     juju.wait(lambda status: jubilant.all_active(status, INFLUXDB_APP_NAME))
+    sleep(5)
 
 
 @pytest.mark.order(10)
@@ -41,9 +47,6 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
     """Test that `influxdb` is recording task level info."""
     if INFLUXDB_APP_NAME not in juju.status().apps:
         setup_influxdb(juju)
-        # Sleep for five seconds after making a configuration change to give the cluster
-        # a few moments to resume operation.
-        sleep(5)
 
     unit = f"{SACKD_APP_NAME}/0"
 
