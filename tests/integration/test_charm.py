@@ -16,7 +16,6 @@
 """Slurm charm integration tests."""
 
 import logging
-from time import sleep
 
 import jubilant
 import pytest
@@ -107,11 +106,6 @@ def test_slurm_prometheus_exporter_service_is_active(juju: jubilant.Juju) -> Non
 
 
 @pytest.mark.order(4)
-@tenacity.retry(
-    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
-    stop=tenacity.stop_after_attempt(3),
-    reraise=True,
-)
 def test_slurmctld_port_number(juju: jubilant.Juju) -> None:
     """Test that the `slurmctld` service is listening on port 6817."""
     unit = f"{SLURMCTLD_APP_NAME}/0"
@@ -127,19 +121,13 @@ def test_slurmctld_port_number(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.order(5)
-@tenacity.retry(
-    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
-    stop=tenacity.stop_after_attempt(3),
-    reraise=True,
-)
 def test_slurmdbd_port_number(juju: jubilant.Juju) -> None:
     """Test that the `slurmdbd` service is listening on port 6819."""
-    sleep(5)
     unit = f"{SLURMDBD_APP_NAME}/0"
     port = 6819
 
     logger.info(
-        "testing that the 'slurmdbd' service is listening on port '%s' on unit '%s'",
+        "testing that the 'slurmctld' service is listening on port '%s' on unit '%s'",
         port,
         unit,
     )
@@ -148,11 +136,6 @@ def test_slurmdbd_port_number(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.order(6)
-@tenacity.retry(
-    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
-    stop=tenacity.stop_after_attempt(3),
-    reraise=True,
-)
 def test_new_slurmd_unit_state_and_reason(juju: jubilant.Juju) -> None:
     """Test that new nodes join the cluster in a down state and with an appropriate reason."""
     unit = f"{SACKD_APP_NAME}/0"
