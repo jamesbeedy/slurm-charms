@@ -16,10 +16,10 @@
 """`influxdb` integration tests for the Slurm charms."""
 
 import logging
+from time import sleep
 
 import jubilant
 import pytest
-import tenacity
 from constants import INFLUXDB_APP_NAME, SACKD_APP_NAME, SLURMCTLD_APP_NAME
 
 logger = logging.getLogger(__name__)
@@ -37,15 +37,13 @@ def setup_influxdb(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.order(10)
-@tenacity.retry(
-    wait=tenacity.wait.wait_exponential(multiplier=2, min=1, max=30),
-    stop=tenacity.stop_after_attempt(3),
-    reraise=True,
-)
 def test_task_accounting_works(juju: jubilant.Juju) -> None:
     """Test that `influxdb` is recording task level info."""
     if INFLUXDB_APP_NAME not in juju.status().apps:
         setup_influxdb(juju)
+        # Sleep for five seconds after making a configuration change to give the cluster
+        # a few moments to resume operation.
+        sleep(5)
 
     unit = f"{SACKD_APP_NAME}/0"
 
@@ -54,7 +52,19 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
         "tests/integration/testdata/sbatch_sleep_job.sh",
         f"ubuntu@{unit}:~/sbatch_sleep_job.sh",
     )
-    juju.exec("sbatch /home/ubuntu/sbatch_sleep_job.sh", unit=unit)
-    result = juju.exec("sstat 2 --format=NTasks --noheader | awk '{print $1}'", unit=unit)
-    # Validate that sstat shows 1 task running
-    assert int(result.stdout) == 1
+    job_id = juju.exec(
+        "sbatch", "--parsable", "/home/ubuntu/sbatch_sleep_job.sh", unit=unit
+    ).stdout.strip()
+
+    squeue_0 = juju.exec("squeue", unit=unit).stdout
+    logger.info(f"\n{squeue_0}")
+
+    # Give a few seconds for the job to enter the queue and transition to RUNNING (takes ~ 5s).
+    sleep(5)
+
+    squeue_1 = juju.exec("squeue", unit=unit).stdout
+    logger.info(f"\n{squeue_1}")
+
+    result = juju.exec("sstat", job_id, "--format=NTasks", "--noheader", unit=unit).stdout.strip()
+    logger.info(f"\n{result}")
+    assert int(result) == 1
