@@ -247,9 +247,9 @@ class SlurmdbdCharm(ops.CharmBase):
         self,
         event: Union[
             ops.ConfigChangedEvent,
-            ops.DatabaseCreatedEvent,
+            DatabaseCreatedEvent,
             ops.InstallEvent,
-            ops.SlurmctldAvailableEvent,
+            SlurmctldAvailableEvent,
             ops.SecretChangedEvent,
         ],
     ) -> None:
