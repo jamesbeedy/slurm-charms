@@ -8,25 +8,13 @@
 
 import logging
 from time import sleep
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 from urllib.parse import urlparse
 
+import ops
 from constants import CHARM_MAINTAINED_PARAMETERS, SLURM_ACCT_DB, SLURMDBD_PORT
 from hpc_libs.slurm_ops import SlurmdbdManager, SlurmOpsError
 from interface_slurmctld import Slurmctld, SlurmctldAvailableEvent, SlurmctldUnavailableEvent
-from ops import (
-    ActiveStatus,
-    BlockedStatus,
-    CharmBase,
-    ConfigChangedEvent,
-    InstallEvent,
-    ModelError,
-    SecretChangedEvent,
-    StoredState,
-    UpdateStatusEvent,
-    WaitingStatus,
-    main,
-)
 from slurmutils.models import SlurmdbdConfig
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
@@ -35,7 +23,7 @@ from charms.grafana_agent.v0.cos_agent import COSAgentProvider
 logger = logging.getLogger(__name__)
 
 
-def _convert_db_uri_to_dict(db_uri: str) -> Dict:
+def _convert_db_uri_to_dict(db_uri: str) -> Dict[str, str]:
     """Convert db_uri to  a dict."""
     parsed = urlparse(db_uri)
     db_info = {
@@ -59,10 +47,10 @@ class DBURISecretAccessError(RuntimeError):
         return self.args[0]
 
 
-class SlurmdbdCharm(CharmBase):
+class SlurmdbdCharm(ops.CharmBase):
     """Slurmdbd Charm."""
 
-    _stored = StoredState()
+    _stored = ops.StoredState()
 
     def __init__(self, *args, **kwargs) -> None:
         """Set the default class attributes."""
@@ -90,9 +78,9 @@ class SlurmdbdCharm(CharmBase):
         for event, handler in event_handler_bindings.items():
             self.framework.observe(event, handler)
 
-    def _on_install(self, event: InstallEvent) -> None:
+    def _on_install(self, event: ops.InstallEvent) -> None:
         """Perform installation operations for slurmdbd."""
-        self.unit.status = WaitingStatus("installing slurmdbd")
+        self.unit.status = ops.WaitingStatus("installing slurmdbd")
         try:
             if self.unit.is_leader():
                 self._slurmdbd.install()
@@ -112,7 +100,7 @@ class SlurmdbdCharm(CharmBase):
         self.unit.open_port("tcp", SLURMDBD_PORT)
         self._check_status()
 
-    def _on_update_status(self, _: UpdateStatusEvent) -> None:
+    def _on_update_status(self, _: ops.UpdateStatusEvent) -> None:
         """Handle update status."""
         self._check_status()
 
@@ -133,7 +121,7 @@ class SlurmdbdCharm(CharmBase):
         try:
             db_info = self._get_db_info()
         except DBURISecretAccessError as e:
-            self.unit.status = BlockedStatus(e.message)
+            self.unit.status = ops.BlockedStatus(e.message)
             logger.error(e.message)
             event.defer()
             return
@@ -141,13 +129,13 @@ class SlurmdbdCharm(CharmBase):
         if db_info:
             self._write_config_and_restart_slurmdbd(event)
 
-    def _on_secret_changed(self, event: SecretChangedEvent) -> None:
+    def _on_secret_changed(self, event: ops.SecretChangedEvent) -> None:
         """Handle secret-changed event."""
         if event.secret.label == "db-uri":
             try:
                 db_info = self._get_db_info()
             except DBURISecretAccessError as e:
-                self.unit.status = BlockedStatus(e.message)
+                self.unit.status = ops.BlockedStatus(e.message)
                 logger.error(e.message)
                 event.defer()
                 return
@@ -188,7 +176,7 @@ class SlurmdbdCharm(CharmBase):
             # a human to look at and resolve the proper next steps. Reprocessing the
             # deferred event will only result in continual errors.
             logger.error(f"No endpoints provided: {event.endpoints}")
-            self.unit.status = BlockedStatus("No database endpoints provided.")
+            self.unit.status = ops.BlockedStatus("No database endpoints provided.")
             raise ValueError(f"Unexpected endpoint types: {event.endpoints}")
 
         for endpoint in [ep.strip() for ep in event.endpoints.split(",")]:
@@ -245,7 +233,7 @@ class SlurmdbdCharm(CharmBase):
             # and is an unexpected condition. This happens when there are commas but no
             # usable data in the endpoints.
             logger.error(f"No endpoints provided: {event.endpoints}")
-            self.unit.status = BlockedStatus("No database endpoints provided.")
+            self.unit.status = ops.BlockedStatus("No database endpoints provided.")
             raise ValueError(f"No endpoints provided: {event.endpoints}")
 
         self._stored.db_info = db_info
@@ -258,11 +246,11 @@ class SlurmdbdCharm(CharmBase):
     def _write_config_and_restart_slurmdbd(
         self,
         event: Union[
-            ConfigChangedEvent,
-            DatabaseCreatedEvent,
-            InstallEvent,
-            SlurmctldAvailableEvent,
-            SecretChangedEvent,
+            ops.ConfigChangedEvent,
+            ops.DatabaseCreatedEvent,
+            ops.InstallEvent,
+            ops.SlurmctldAvailableEvent,
+            ops.SecretChangedEvent,
         ],
     ) -> None:
         """Check that we have what we need before we proceed."""
@@ -280,8 +268,9 @@ class SlurmdbdCharm(CharmBase):
             try:
                 db_info = self._get_db_info()
             except DBURISecretAccessError as e:
-                self.unit.status = BlockedStatus(e.message)
+                self.unit.status = ops.BlockedStatus(e.message)
                 logger.error(e.message)
+                event.defer()
                 return
 
             slurmdbd_config = SlurmdbdConfig.from_dict(
@@ -313,64 +302,42 @@ class SlurmdbdCharm(CharmBase):
                 self._slurmctld.set_slurmdbd_host_on_app_relation_data(self._slurmdbd.hostname)
         else:
             msg = "Cannot get network binding, please debug."
-            self.unit.status = BlockedStatus(msg)
+            self.unit.status = ops.BlockedStatus(msg)
             logger.error(msg)
 
         self._check_status()
 
+    def _handle_secret_error(self, error: Exception, secret_id: str, reason: str) -> None:
+        """Centralized secret error handler."""
+        msg = f"Cannot access secret: {secret_id}. {reason}"
+        self.unit.status = ops.BlockedStatus(msg)
+        logger.error(f"{msg} - {getattr(error, 'message', str(error))}")
+        raise DBURISecretAccessError(msg)
+
     def _get_db_info(self) -> Dict[Any, Any]:
-        """Determine db configuration."""
-        db_info = {}
-
-        try:
-            db_info = self._get_user_suppied_db_config_if_exists()
-        except DBURISecretAccessError as e:
-            raise e
-
-        if db_info is not None:
-            return db_info
-
-        if (db_info := self._stored.db_info) != {}:
-            return db_info
-
-        return {}
-
-    def _get_user_suppied_db_config_if_exists(self) -> Optional[dict]:
         """Determine if user supplied db configuration."""
-        if (raw_id := self.config.get("db-uri-secret-id")) is not None:
-            db_uri_secret_id_charm_config = str(raw_id)
-            logger.debug(f"Attempting to retrieve secret: {db_uri_secret_id_charm_config}")
+        db_uri = ""
+
+        if (db_uri_secret_id := self.config.get("db-uri-secret-id")) is not None:
+
+            logger.debug(f"Attempting to retrieve secret: {db_uri_secret_id}")
             try:
-                if (db_uri := self._get_db_uri_secret(db_uri_secret_id_charm_config)) is not None:
-                    logger.debug("Acquired db-uri from secrets storage.")
-                    return _convert_db_uri_to_dict(db_uri)
-                else:
-                    logger.debug("db-uri-secret-id supplied but no secret found.")
-            except DBURISecretAccessError as e:
-                logger.error(e.message)
-                raise e
+                db_uri_secret = self.model.get_secret(id=f"{db_uri_secret_id}")
+                db_uri = db_uri_secret.get_content(refresh=True)["db-uri"]
+            except ops.SecretNotFoundError as e:
+                self._handle_secret_error(e, f"{db_uri_secret_id}", "Does not exist.")
+            except ops.ModelError as e:
+                self._handle_secret_error(e, f"{db_uri_secret_id}", "Insufficient privileges.")
+            except KeyError as e:
+                msg = f"Cannot access secret content 'db-uri' for secret: {db_uri_secret_id}."
+                self.unit.status = ops.BlockedStatus(msg)
+                logger.error(f"{msg} - {e.args[0]}")
+                raise DBURISecretAccessError(msg)
         else:
             logger.debug("No user supplied db-uri.")
-        return None
+            return self._stored.db_info
 
-    def _get_db_uri_secret(self, db_uri_secret_id: str) -> Optional[str]:
-        """Return the db_uri from secrets storage if it exists."""
-        db_uri = ""
-        try:
-            if db_uri_secret := self.model.get_secret(id=db_uri_secret_id):
-                db_uri = db_uri_secret.get_content(refresh=True)["db-uri"]
-            else:
-                msg = f"Cannot access secret: {db_uri_secret_id}"
-                self.unit.status = BlockedStatus(msg)
-                logger.error(msg)
-        except ModelError as e:
-            self.unit.status = BlockedStatus(
-                "Cannot access secret content `db-uri`- slurmdbd needs `read` permissions granted or the secret content is not correct."
-            )
-            logger.error(e)
-            raise DBURISecretAccessError(f"cannot access secret: {db_uri_secret_id}")
-
-        return db_uri if db_uri != "" else None
+        return _convert_db_uri_to_dict(db_uri)
 
     def _get_user_supplied_parameters(self) -> Dict[Any, Any]:
         """Gather, parse, and return the user supplied parameters."""
@@ -396,25 +363,25 @@ class SlurmdbdCharm(CharmBase):
                 break
             else:
                 logger.warning("## slurmdbd not running, trying to start it")
-                self.unit.status = WaitingStatus("starting slurmdbd...")
+                self.unit.status = ops.WaitingStatus("starting slurmdbd...")
                 self._slurmdbd.service.restart()
                 sleep(3 + i)
 
         if self._slurmdbd.service.active():
             self._check_status()
         else:
-            self.unit.status = BlockedStatus("Cannot start slurmdbd.")
+            self.unit.status = ops.BlockedStatus("Cannot start slurmdbd.")
 
     def _check_status(self) -> bool:
         """Check that we have the things we need."""
         if self.unit.is_leader() is False:
-            self.unit.status = BlockedStatus(
+            self.unit.status = ops.BlockedStatus(
                 "slurmdbd high-availability not supported. see logs for further details"
             )
             return False
 
         if self._stored.slurm_installed is not True:
-            self.unit.status = BlockedStatus(
+            self.unit.status = ops.BlockedStatus(
                 "Failed to install slurmdbd, see logs for further details."
             )
             return False
@@ -422,23 +389,23 @@ class SlurmdbdCharm(CharmBase):
         try:
             db_info = self._get_db_info()
         except DBURISecretAccessError as e:
-            self.unit.status = BlockedStatus(e.message)
+            self.unit.status = ops.BlockedStatus(e.message)
             logger.error(e.message)
             return False
 
-        if db_info is None:
-            self.unit.status = WaitingStatus("Waiting on: MySQL")
+        if db_info == {}:
+            self.unit.status = ops.WaitingStatus("Waiting on: MySQL")
             return False
 
         # Account for the case where slurmctld relation has joined
         # but slurmctld hasn't sent the key data yet.
         if self._slurmctld.is_joined and not self._slurmdbd.jwt.path.exists():
-            self.unit.status = WaitingStatus("Waiting on: data from slurmctld...")
+            self.unit.status = ops.WaitingStatus("Waiting on: data from slurmctld...")
             return False
 
-        self.unit.status = ActiveStatus()
+        self.unit.status = ops.ActiveStatus()
         return True
 
 
 if __name__ == "__main__":
-    main.main(SlurmdbdCharm)
+    ops.main(SlurmdbdCharm)
