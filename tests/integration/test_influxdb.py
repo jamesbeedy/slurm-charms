@@ -66,5 +66,5 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
     logger.info(f"\n{squeue_1}")
 
     result = juju.exec("sstat", job_id, "--format=NTasks", "--noheader", unit=unit).stdout.strip()
-    logger.info(result)
+    logger.info(f"\n{result}")
     assert int(result) == 1
