@@ -307,16 +307,16 @@ class SlurmdbdCharm(ops.CharmBase):
 
         self._check_status()
 
-    def _handle_secret_error(self, error: Exception, secret_id: str, reason: str) -> None:
-        """Centralized secret error handler."""
-        msg = f"Cannot access secret: {secret_id}. {reason}"
-        self.unit.status = ops.BlockedStatus(msg)
-        logger.error(f"{msg} - {getattr(error, 'message', str(error))}")
-        raise DBURISecretAccessError(msg)
-
     def _get_db_info(self) -> Dict[Any, Any]:
         """Determine if user supplied db configuration."""
         db_uri = ""
+
+        def _handle_secret_error(error: Exception, secret_id: str, reason: str) -> None:
+            """Consolidated secret error handler."""
+            msg = f"Cannot access secret: {secret_id}. {reason}"
+            self.unit.status = ops.BlockedStatus(msg)
+            logger.error(f"{msg} - {getattr(error, 'message', str(error))}")
+            raise DBURISecretAccessError(msg)
 
         if (db_uri_secret_id := self.config.get("db-uri-secret-id")) is not None:
 
@@ -329,10 +329,9 @@ class SlurmdbdCharm(ops.CharmBase):
             except ops.ModelError as e:
                 self._handle_secret_error(e, f"{db_uri_secret_id}", "Insufficient privileges.")
             except KeyError as e:
-                msg = f"Cannot access secret content 'db-uri' for secret: {db_uri_secret_id}."
-                self.unit.status = ops.BlockedStatus(msg)
-                logger.error(f"{msg} - {e.args[0]}")
-                raise DBURISecretAccessError(msg)
+                self._handle_secret_error(
+                    e, f"{db_uri_secret_id}", "Cannot access secret content 'db-uri'."
+                )
         else:
             logger.debug("No user supplied db-uri.")
             return self._stored.db_info
