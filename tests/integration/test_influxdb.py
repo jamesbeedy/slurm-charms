@@ -37,11 +37,13 @@ def setup_influxdb(juju: jubilant.Juju) -> None:
 
 
 @pytest.mark.order(10)
-# @tenacity.retry(stop=tenacity.stop_after_attempt(1))
 def test_task_accounting_works(juju: jubilant.Juju) -> None:
     """Test that `influxdb` is recording task level info."""
     if INFLUXDB_APP_NAME not in juju.status().apps:
         setup_influxdb(juju)
+        # Sleep for five seconds after making a configuration change to give the cluster
+        # a few moments to resume operation.
+        sleep(5)
 
     unit = f"{SACKD_APP_NAME}/0"
 
@@ -57,7 +59,9 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
     logger.info(juju.exec("squeue", unit=unit).stdout)
 
     # Give a few seconds for the job to enter the queue and transition to RUNNING (takes > 5s).
-    sleep(10)
+    sleep(15)
+
+    logger.info(juju.exec("squeue", unit=unit).stdout)
 
     result = juju.exec("sstat", job_id, "--format=NTasks", "--noheader", unit=unit).stdout.strip()
     logger.info(result)
