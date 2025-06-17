@@ -57,13 +57,13 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
     ).stdout.strip()
 
     squeue_0 = juju.exec("squeue", unit=unit).stdout
-    logger.info(f"\n{squeue_0}"))
+    logger.info(f"\n{squeue_0}")
 
     # Give a few seconds for the job to enter the queue and transition to RUNNING (takes ~ 5s).
     sleep(5)
 
     squeue_1 = juju.exec("squeue", unit=unit).stdout
-    logger.info(f"\n{squeue_1}"))
+    logger.info(f"\n{squeue_1}")
 
     result = juju.exec("sstat", job_id, "--format=NTasks", "--noheader", unit=unit).stdout.strip()
     logger.info(result)
