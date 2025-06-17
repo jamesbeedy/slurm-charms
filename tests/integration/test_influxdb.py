@@ -56,8 +56,7 @@ def test_task_accounting_works(juju: jubilant.Juju) -> None:
         "sbatch", "--parsable", "/home/ubuntu/sbatch_sleep_job.sh", unit=unit
     ).stdout.strip()
 
-    squeue_0 = juju.exec("squeue", unit=unit).stdout
-    logger.info(f"\n{squeue_0}")
+    logger.info("\n" + juju.exec("squeue", unit=unit).stdout)
 
     # Give a few seconds for the job to enter the queue and transition to RUNNING (takes ~ 5s).
     sleep(5)
