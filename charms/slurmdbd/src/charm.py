@@ -28,6 +28,7 @@ from ops import (
     main,
 )
 from slurmutils.models import SlurmdbdConfig
+from utils import parse_user_supplied_parameters
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
