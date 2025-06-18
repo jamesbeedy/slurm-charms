@@ -29,15 +29,15 @@ def setup_influxdb(juju: jubilant.Juju) -> None:
     """Deploy and integrate `influxdb` with `slurmctld`.
 
     Notes:
-        - Sleep for five seconds after the `influxdb` app reaches active status 
+        - Sleep for five seconds after the `influxdb` app reaches active status
           to give the cluster enough time to reconfigure.
     """
     logger.info("deploying '%s'", INFLUXDB_APP_NAME)
     juju.deploy(INFLUXDB_APP_NAME)
-    
+
     logger.info("integrating '%s' application with '%s' application")
     juju.integrate(INFLUXDB_APP_NAME, SLURMCTLD_APP_NAME)
-    
+
     juju.wait(lambda status: jubilant.all_active(status, INFLUXDB_APP_NAME))
     sleep(5)
 
