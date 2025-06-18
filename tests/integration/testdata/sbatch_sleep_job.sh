@@ -1,4 +1,4 @@
 #!/bin/bash
 #SBATCH --partition compute
 
-srun sleep 20
+srun sleep 10
