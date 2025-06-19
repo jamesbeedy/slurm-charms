@@ -16,72 +16,49 @@
 """Test functions in utils.py."""
 
 # test_utils.py
-# test_utils.py
-
-import textwrap
-from unittest.mock import patch
 
 import pytest
-from utils import parse_user_supplied_parameters
+from exceptions import InvalidDBURIError
+from utils import convert_db_uri_to_dict
 
 
-def test_parse_valid_config():
-    config = textwrap.dedent(
-        """
-        StorageType=accounting_storage/slurmdbd
-        LogFile=/var/log/slurm/slurmdbd.log
-        """
-    )
+def test_convert_db_uri_to_dict_raises_on_missing_components():
+    malformed_uris = [
+        "mysql://@host:3306/db",  # Missing user & pass
+        "mysql://user@host/db",  # Missing password, port
+        "mysql://user:pass@:3306/db",  # Missing host
+        "mysql://user:pass@host/db",  # Missing port
+        "mysql://user:pass@host:3306/",  # Missing db path
+        "user:pass@host:3306/db",  # Missing schema
+        "postgresql://user:pass@host:3306/db",  # Wrong schema
+    ]
+
+    for uri in malformed_uris:
+        with pytest.raises(InvalidDBURIError):
+            convert_db_uri_to_dict(uri)
+
+
+def test_convert_db_uri_to_dict_mysql():
+    uri = "mysql://user:pass@hostname:3306/database"
     expected = {
-        "StorageType": "accounting_storage/slurmdbd",
-        "LogFile": "/var/log/slurm/slurmdbd.log",
+        "StorageUser": "user",
+        "StoragePass": "pass",
+        "StorageHost": "hostname",
+        "StoragePort": "3306",
+        "StorageLoc": "database",
     }
-    result = parse_user_supplied_parameters(config)
+    result = convert_db_uri_to_dict(uri)
     assert result == expected
 
 
-def test_parse_with_comments_and_blank_lines():
-    config = textwrap.dedent(
-        """
-        # This is a comment
-        StorageType=accounting_storage/slurmdbd
-
-        LogFile=/var/log/slurm/slurmdbd.log
-        # Another comment
-        """
-    )
+def test_convert_db_uri_to_dict_handles_path_slash():
+    uri = "mysql://user:pass@host:3306//data/dir"
     expected = {
-        "StorageType": "accounting_storage/slurmdbd",
-        "LogFile": "/var/log/slurm/slurmdbd.log",
+        "StorageUser": "user",
+        "StoragePass": "pass",
+        "StorageHost": "host",
+        "StoragePort": "3306",
+        "StorageLoc": "/data/dir".lstrip("/"),  # Ensures leading slash is removed
     }
-    result = parse_user_supplied_parameters(config)
+    result = convert_db_uri_to_dict(uri)
     assert result == expected
-
-
-def test_parse_empty_config():
-    config = ""
-    result = parse_user_supplied_parameters(config)
-    assert result == {}
-
-
-def test_parse_malformed_line_raises_index_error():
-    config = textwrap.dedent(
-        """
-        ValidKey=ValidValue
-        MalformedLineWithoutEquals
-        """
-    )
-
-    with patch("utils.logger") as mock_logger:
-        with pytest.raises(IndexError):
-            parse_user_supplied_parameters(config)
-        assert mock_logger.error.called
-        assert "Could not parse user supplied parameters" in mock_logger.error.call_args[0][0]
-
-
-def test_parse_handles_only_malformed_line():
-    config = "BadLineWithoutEquals"
-    with patch("utils.logger") as mock_logger:
-        with pytest.raises(IndexError):
-            parse_user_supplied_parameters(config)
-        assert mock_logger.error.called
