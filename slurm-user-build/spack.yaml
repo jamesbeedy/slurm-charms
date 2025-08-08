@@ -1,26 +1,49 @@
 spack:
   specs:
-  - openmpi@5.0.3 schedulers=slurm fabrics=auto ^hwloc ^libevent ^pmix
-  - dbus system-socket=/var/run/dbus/system_bus_socket
-  - slurm +readline +hwloc +pmix +restd +nvml +cgroup +rsmi +hdf5 sysconfdir=/etc/slurm
-  - munge localstatedir=/var
+    - openmpi@5.0.3 schedulers=slurm fabrics=auto ^hwloc ^libevent ^pmix
+    - dbus system-socket=/var/run/dbus/system_bus_socket
+    - slurm@25-05-1-1 +readline +hwloc +pmix +restd +nvml +cgroup +rsmi +hdf5 sysconfdir=/etc/slurm
+    - hdf5 +hl +cxx +shared  # Clean HDF5 with HL API for SLURM
+
   concretizer:
-    unify: true
+    unify: when_possible  # Prevents concretizer from getting stuck
+
   view: /srv/slurm/view
+
   config:
     install_tree:
       root: /srv/slurm/software
+
   compilers:
-  - compiler:
-      spec: gcc@=11.4.0
-      paths:
-        cc: /usr/bin/gcc
-        cxx: /usr/bin/g++
-        f77: /usr/bin/gfortran
-        fc: /usr/bin/gfortran
-      flags: {}
-      operating_system: ubuntu22.04
-      target: x86_64
-      modules: []
-      environment: {}
-      extra_rpaths: []
+    - compiler:
+        spec: gcc@=13.3.0
+        paths:
+          cc: /usr/bin/gcc
+          cxx: /usr/bin/g++
+          f77: /usr/bin/gfortran
+          fc: /usr/bin/gfortran
+        operating_system: ubuntu24.04
+        target: x86_64
+        modules: []  # REQUIRED FIELD
+
+  packages:
+    gcc:
+      externals:
+        - spec: gcc@13.3.0 languages:='c,c++,fortran'
+          prefix: /usr
+          extra_attributes:
+            compilers:
+              c: /usr/bin/gcc
+              cxx: /usr/bin/g++
+              fortran: /usr/bin/gfortran
+            flags: {}
+            environment: {}
+            extra_rpaths: []
+          modules: []  # REQUIRED FIELD
+    hdf5:
+      variants: +hl +cxx +shared
+    all:
+      providers:
+        mpi: [openmpi]
+      target: [x86_64]
+
